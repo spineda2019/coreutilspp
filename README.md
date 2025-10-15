@@ -13,3 +13,7 @@ libc.
 ## Why is it?
 I really just wanted to make a cross platform C++ project, and this is easy to
 dog food.
+
+## Licensing
+This is TBD, I like FOSS and would like the GPLv3 as a result, but this is
+subject to change, even when a decision is made.
