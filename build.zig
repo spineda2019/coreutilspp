@@ -15,19 +15,38 @@ pub fn build(b: *std.Build) !void {
         .name = "ls",
         .root_module = modls,
     });
-    b.installArtifact(exels);
-    try all_targets.append(b.allocator, exels);
-    const ls_buildstep = b.step("ls", "build ls");
-    ls_buildstep.dependOn(&exels.step);
-    const ls_runstep = b.step("run_ls", "Run ls");
-    const ls_runcmd = b.addRunArtifact(exels);
-    ls_runcmd.step.dependOn(ls_runstep);
-    if (b.args) |args| {
-        ls_runcmd.addArgs(args);
-    }
+    try trackCompilation(exels, &all_targets, b);
 
     for (all_targets.items) |each_target| {
         install_step.dependOn(&each_target.step);
+    }
+}
+
+fn trackCompilation(
+    exe: *std.Build.Step.Compile,
+    tracked: *std.ArrayList(*std.Build.Step.Compile),
+    b: *std.Build,
+) !void {
+    b.installArtifact(exe);
+    try tracked.append(b.allocator, exe);
+
+    var build_buf: std.ArrayList(u8) = .empty;
+    try build_buf.appendSlice(b.allocator, "build ");
+    try build_buf.appendSlice(b.allocator, exe.name);
+    const ls_buildstep = b.step(exe.name, build_buf.items);
+    ls_buildstep.dependOn(&exe.step);
+
+    var name_buf: std.ArrayList(u8) = .empty;
+    try name_buf.appendSlice(b.allocator, "run_");
+    try name_buf.appendSlice(b.allocator, exe.name);
+    var description_buf: std.ArrayList(u8) = .empty;
+    try description_buf.appendSlice(b.allocator, "Run ");
+    try description_buf.appendSlice(b.allocator, exe.name);
+    const ls_runstep = b.step(name_buf.items, description_buf.items);
+    const ls_runcmd = b.addRunArtifact(exe);
+    ls_runcmd.step.dependOn(ls_runstep);
+    if (b.args) |args| {
+        ls_runcmd.addArgs(args);
     }
 }
 
