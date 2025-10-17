@@ -38,6 +38,15 @@ pub fn build(b: *std.Build) !void {
             .optimize = optimize,
             .build_root = b,
         },
+        .{
+            .name = comptime "yes",
+            .srcs = comptime &.{
+                .{ .name = "main.cpp", .directory = "yes/" },
+            },
+            .target = target,
+            .optimize = optimize,
+            .build_root = b,
+        },
     };
 
     for (packages) |each_package| {
@@ -115,10 +124,10 @@ fn createPackage(config: PackageConfiguration) !*std.Build.Step.Compile {
         name_buf.items,
         description_buf.items,
     );
-    const ls_runcmd = config.build_root.addRunArtifact(comp);
-    ls_runcmd.step.dependOn(runstep);
+    const runcmd = config.build_root.addRunArtifact(comp);
+    runstep.dependOn(&runcmd.step);
     if (config.build_root.args) |args| {
-        ls_runcmd.addArgs(args);
+        runcmd.addArgs(args);
     }
 
     config.build_root.getInstallStep().dependOn(&comp.step);
