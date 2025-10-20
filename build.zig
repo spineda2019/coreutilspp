@@ -101,6 +101,8 @@ fn createPackage(config: PackageConfiguration) !*std.Build.Step.Compile {
         });
     }
 
+    mod.addIncludePath(config.build_root.path(""));
+
     const comp = config.build_root.addExecutable(.{
         .name = config.name,
         .root_module = mod,
