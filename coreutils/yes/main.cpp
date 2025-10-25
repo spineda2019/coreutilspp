@@ -2,18 +2,15 @@
 
 #include <print>
 #include <span>
-#include <string_view>
 
 #include "lib/ArgumentParser.hpp"
 
 int main(int argc, const char **argv) {
-    static constexpr const char h[]{"-h"};
-    static constexpr const char d[]{"-d"};
+    constexpr core::Argument<core::flags::Help> help{};
+    constexpr core::Argument<core::flags::Version> version{};
 
-    using Help = core::BooleanFlag<h>;
-    using Dir = core::Flag<d, std::string_view, 1>;
+    core::ArgumentParser<help, version> parser{};
 
-    core::ArgumentParser<Help, Dir> parser{};
     parser.ParseArgs(std::span<const char *>{argv + 1, argv + argc});
 
     if (argc > 2) {

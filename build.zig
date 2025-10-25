@@ -32,7 +32,7 @@ pub fn build(b: *std.Build) !void {
         .{
             .name = comptime "ls",
             .srcs = comptime &.{
-                .{ .name = "main.cpp", .directory = "ls/" },
+                .{ .name = "main.cpp", .directory = "coreutils/ls/" },
             },
             .target = target,
             .optimize = optimize,
@@ -41,7 +41,7 @@ pub fn build(b: *std.Build) !void {
         .{
             .name = comptime "yes",
             .srcs = comptime &.{
-                .{ .name = "main.cpp", .directory = "yes/" },
+                .{ .name = "main.cpp", .directory = "coreutils/yes/" },
             },
             .target = target,
             .optimize = optimize,

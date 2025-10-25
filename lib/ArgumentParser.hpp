@@ -3,45 +3,43 @@
 #ifndef LIB_ARGUMENTPARSER_HPP_
 #define LIB_ARGUMENTPARSER_HPP_
 
+#include <array>
 #include <cstddef>
+#include <cstdint>
 #include <span>
+#include <string_view>
 
 namespace core {
 
-/// e.g <"-d", 1, std::filesystem::path>
-template <const char* Id, class T, std::size_t NumValues>
-class Flag {};
+namespace flags {
+struct Help {};
+struct Version {};
+}  // namespace flags
 
-/// e.g <"-d", std::filesystem::path>
-template <const char* Id, class T>
-class Flag<Id, T, 1> {};
+enum class nargs : std::uint8_t {};
 
-/// e.g <"-d", std::filesystem::path>
-template <const char* Id>
-class Flag<Id, void, 0> {};
+template <class T, const char*... Names>
+class Argument final {};
 
-template <const char* Id>
-using BooleanFlag = Flag<Id, void, 0>;
+template <>
+class Argument<flags::Help> final {};
 
-namespace util {
-template <class Concrete,
-          template <const char*, class, std::size_t> class Template>
-inline constexpr bool is_instance_of_template{false};
-
-template <const char* Id, class T, std::size_t NumValues,
-          template <const char*, class, std::size_t> class Template>
-inline constexpr bool
-    is_instance_of_template<Template<Id, T, NumValues>, Template>{true};
-
-}  // namespace util
+template <>
+class Argument<flags::Version> final {};
 
 template <class T>
-concept FlagType = util::is_instance_of_template<T, Flag>;
+class Argument<T> final {
+    static_assert(false, "Argument with a type must have at least one Name");
+};
 
-template <FlagType... FlagTypes>
+template <Argument... Args>
 class ArgumentParser final {
  public:
-    void ParseArgs(std::span<const char*> args) const { (void)args; }
+    void ParseArgs(std::span<const char*> args) const {
+        for (std::string_view arg : args) {
+            (void)arg;
+        }
+    }
 
  private:
 };
