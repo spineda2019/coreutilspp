@@ -1,18 +1,8 @@
 // Copyright 2025 Sebastian Pineda (spineda.wpi.alum@wpi.edu)
 
 #include <print>
-#include <span>
-
-#include "lib/ArgumentParser.hpp"
 
 int main(int argc, const char **argv) {
-    constexpr core::Argument<core::flags::Help> help{};
-    constexpr core::Argument<core::flags::Version> version{};
-
-    core::ArgumentParser<help, version> parser{};
-
-    parser.ParseArgs(std::span<const char *>{argv + 1, argv + argc});
-
     if (argc > 2) {
         std::println("Usage: yes [string]");
         return 1;
