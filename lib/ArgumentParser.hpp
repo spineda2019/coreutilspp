@@ -27,9 +27,6 @@ struct ProgramName final {
     std::array<char, Length> name_;
 };
 
-template <std::size_t Length>
-ProgramName(const char (&)[Length]) -> ProgramName<Length>;
-
 template <ProgramName Name>
 class ArgumentParser final {
  public:
