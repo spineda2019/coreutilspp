@@ -54,7 +54,7 @@ class ArgumentParser final {
                 PrintVersion();
             }
             if (arg == "-h" || arg == "--help") {
-                PrintVersion();
+                PrintHelp();
             }
         }
     }
@@ -63,6 +63,12 @@ class ArgumentParser final {
     constexpr void PrintVersion() const {
         std::println("{} version {}\n\n{}", Name.PrintableView(),
                      Version.PrintableView(), license_info_);
+        std::exit(0);
+    }
+
+    [[noreturn]]
+    constexpr void PrintHelp() const {
+        std::println("Usage: {} [OPTIONS]...", Name.PrintableView());
         std::exit(0);
     }
 
