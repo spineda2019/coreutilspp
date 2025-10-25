@@ -56,6 +56,15 @@ pub fn build(b: *std.Build) !void {
             .optimize = optimize,
             .build_root = b,
         },
+        .{
+            .name = comptime "mkdir",
+            .srcs = comptime &.{
+                .{ .name = "main.cpp", .directory = "coreutils/mkdir/" },
+            },
+            .target = target,
+            .optimize = optimize,
+            .build_root = b,
+        },
     };
 
     for (packages) |each_package| {

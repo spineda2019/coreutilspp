@@ -3,6 +3,6 @@
 #include "lib/ArgumentParser.hpp"
 
 int main(int argc, const char** argv) {
-    coreutils::ArgumentParser<"mkdir"> parser{argc, argv};
-    (void)parser;
+    coreutils::ArgumentParser<"mkdir", "0.0.1"> parser{argc, argv};
+    parser.ParseArgsOrExit();
 }
