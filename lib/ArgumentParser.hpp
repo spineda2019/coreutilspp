@@ -3,8 +3,11 @@
 #ifndef LIB_ARGUMENTPARSER_HPP_
 #define LIB_ARGUMENTPARSER_HPP_
 
+#include <algorithm>
 #include <array>
+#include <concepts>
 #include <cstddef>
+#include <cstdint>
 #include <cstdlib>
 #include <print>
 #include <span>
@@ -20,9 +23,7 @@ struct ComptimeString final {
     /// template argument in ArgumentParser, so this allows implicit conversions
     /// (e.g. ArgumentParser<"FooProgram">)
     consteval ComptimeString(const char (&name)[Length]) {
-        for (std::size_t i{0}; i < Length; ++i) {
-            name_[i] = name[i];
-        }
+        std::copy(name, name + Length, name_.begin());
     }
 
     constexpr bool operator==(const ComptimeString&) const = default;
@@ -35,14 +36,52 @@ struct ComptimeString final {
     std::array<char, Length> name_;
 };
 
-template <std::size_t NameLength, std::size_t VersionLength>
-struct ProgramInfo {
-    ComptimeString<NameLength> name_;
-    ComptimeString<VersionLength> version_;
+template <>
+struct ComptimeString<0> final {
+    /// Cannot be marked as explicit, as this is intended to be used as a
+    /// template argument in ArgumentParser, so this allows implicit conversions
+    /// (e.g. ArgumentParser<"FooProgram">)
+    consteval ComptimeString(auto _) : name_{} {}
+
+    constexpr bool operator==(const ComptimeString&) const = default;
+    constexpr auto operator<=>(const ComptimeString&) const = default;
+
+    consteval std::string_view PrintableView() const {
+        return "Positional Arguments...";
+    }
+
+    std::array<char, 0> name_;
 };
+
+template <util::ComptimeString Name>
+static consteval std::string_view CreateHelpView() {
+    if constexpr (!Name.name_.size()) {
+        return "Positional Arguments...";
+    } else {
+        return Name.PrintableView();
+    }
+}
 }  // namespace util
 
-template <util::ComptimeString Name, util::ComptimeString Version>
+template <class T>
+concept Arg =
+    requires(T arg) { std::same_as<std::string, decltype(T::help_view_)>; };
+
+enum struct NArgs : std::uint8_t {
+    None,  // e.g. --verbose
+    One,   // e.g. --directory foo/bar
+    Many,  // e.g. --names bob sally mary ...
+};
+
+template <util::ComptimeString Name, class T, NArgs N>
+struct Argument final {
+    static inline constexpr std::string_view help_view_{
+        util::CreateHelpView<Name>()};
+
+ private:
+};
+
+template <util::ComptimeString Name, util::ComptimeString Version, Arg... Args>
 class ArgumentParser final {
  public:
     constexpr explicit ArgumentParser(int argc, const char** argv)
@@ -67,7 +106,8 @@ class ArgumentParser final {
 
     [[noreturn]]
     constexpr void PrintHelp() const {
-        std::println("Usage: {} [OPTIONS]...", Name.PrintableView());
+        std::println("Usage: {} [OPTIONS]...\n", Name.PrintableView());
+        (std::println("\t{}", Args::help_view_), ...);
         std::exit(0);
     }
 
