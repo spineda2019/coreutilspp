@@ -52,8 +52,7 @@ class ArgumentParser final {
         for (std::string_view arg : args_) {
             if (arg == "-v" || arg == "--version") {
                 PrintVersion();
-            }
-            if (arg == "-h" || arg == "--help") {
+            } else if (arg == "-h" || arg == "--help") {
                 PrintHelp();
             }
         }
