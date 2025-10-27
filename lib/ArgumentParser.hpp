@@ -73,6 +73,15 @@ struct Argument final {
 
     static inline constexpr void TryParseFlag(std::string_view arg) {
         if (arg == Name.PrintableView()) {
+            switch (state_) {
+                case ParseState::Start:
+                    std::println("First encounter of {}", arg);
+                    state_ = ParseState::End;
+                    break;
+                case ParseState::End:
+                    std::println("ERROR! Duplicate {}", arg);
+                    break;
+            }
             std::println("Arg Match: {}", arg);
             std::println("Name.len: {}", Name.PrintableView().size());
             std::println("arg.len: {}", arg.size());
@@ -85,6 +94,8 @@ struct Argument final {
         Start,
         End,
     };
+
+    static inline ParseState state_{ParseState::Start};
 };
 
 template <util::ComptimeString Name, util::ComptimeString Version, Arg... Args>
