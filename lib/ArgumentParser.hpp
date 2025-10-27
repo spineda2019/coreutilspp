@@ -46,11 +46,13 @@ static consteval std::string_view CreateHelpView() {
         return Name.PrintableView();
     }
 }
+
 }  // namespace util
 
 template <class T>
-concept Arg =
-    requires(T arg) { std::same_as<std::string, decltype(T::help_view_)>; };
+concept Arg = requires(T arg) {
+    std::same_as<std::string_view, decltype(T::help_view_)>;
+};
 
 enum struct NArgs : std::uint8_t {
     None,  // e.g. --verbose
@@ -77,6 +79,12 @@ struct Argument final {
             std::println();
         }
     }
+
+ private:
+    enum class ParseState : std::uint8_t {
+        Start,
+        End,
+    };
 };
 
 template <util::ComptimeString Name, util::ComptimeString Version, Arg... Args>
