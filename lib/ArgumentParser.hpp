@@ -23,7 +23,8 @@ struct ComptimeString final {
     /// template argument in ArgumentParser, so this allows implicit conversions
     /// (e.g. ArgumentParser<"FooProgram">)
     consteval ComptimeString(const char (&name)[Length]) {
-        std::copy(name, name + Length, name_.begin());
+        // don't include null terminator. That's C crap.
+        std::copy(name, name + Length - 1, name_.begin());
     }
 
     constexpr bool operator==(const ComptimeString&) const = default;
@@ -33,30 +34,14 @@ struct ComptimeString final {
         return std::string_view{name_.begin(), name_.size()};
     }
 
-    std::array<char, Length> name_;
-};
-
-template <>
-struct ComptimeString<0> final {
-    /// Cannot be marked as explicit, as this is intended to be used as a
-    /// template argument in ArgumentParser, so this allows implicit conversions
-    /// (e.g. ArgumentParser<"FooProgram">)
-    consteval ComptimeString(auto _) : name_{} {}
-
-    constexpr bool operator==(const ComptimeString&) const = default;
-    constexpr auto operator<=>(const ComptimeString&) const = default;
-
-    consteval std::string_view PrintableView() const {
-        return "Positional Arguments...";
-    }
-
-    std::array<char, 0> name_;
+    std::array<char, Length - 1> name_;
 };
 
 template <util::ComptimeString Name>
 static consteval std::string_view CreateHelpView() {
     if constexpr (!Name.name_.size()) {
-        return "Positional Arguments...";
+        static constexpr std::string_view pos{"Positional Arguments..."};
+        return pos;
     } else {
         return Name.PrintableView();
     }
@@ -78,7 +63,20 @@ struct Argument final {
     static inline constexpr std::string_view help_view_{
         util::CreateHelpView<Name>()};
 
- private:
+    static inline constexpr void TryParseValue(std::string_view arg) {
+        if (arg == Name.PrintableView()) {
+            std::println("I am {} and I got ", Name.PrintableView());
+        }
+    }
+
+    static inline constexpr void TryParseFlag(std::string_view arg) {
+        if (arg == Name.PrintableView()) {
+            std::println("Arg Match: {}", arg);
+            std::println("Name.len: {}", Name.PrintableView().size());
+            std::println("arg.len: {}", arg.size());
+            std::println();
+        }
+    }
 };
 
 template <util::ComptimeString Name, util::ComptimeString Version, Arg... Args>
@@ -93,6 +91,12 @@ class ArgumentParser final {
                 PrintVersion();
             } else if (arg == "-h" || arg == "--help") {
                 PrintHelp();
+            } else {
+                if (arg.starts_with('-')) {
+                    (Args::TryParseFlag(arg), ...);
+                } else {
+                    (Args::TryParseValue(arg), ...);
+                }
             }
         }
     }
