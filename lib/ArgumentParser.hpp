@@ -85,68 +85,61 @@ struct ArgumentBase {
 };
 
 template <util::ComptimeString Name, class T, NArgs N, auto Converter>
-struct Argument final : ArgumentBase<Name> {
-    static inline constexpr void TryParseValue(std::string_view arg) {
-        switch (ArgumentBase<Name>::state_) {
-            case util::ParseState::Start:
-                // Can possibly ignore
-                break;
-            case util::ParseState::Seeking:
-                switch (N) {
-                    case NArgs::Many:
-                        break;
-                    case NArgs::One:
-                        // One and done
-                        break;
-                    case NArgs::None:
-                        break;
-                }
-                break;
-            case util::ParseState::End:
-                std::println(
-                    "ERROR! Unexpected value {} for flag in process {}", arg,
-                    Name.PrintableView());
-                std::exit(1);
-                break;
-        }
-        if (arg == Name.PrintableView()) {
-            std::println("I am {} and I got ", Name.PrintableView());
-        }
-    }
-
-    static inline constexpr void TryParseFlag(std::string_view arg) {
-        switch (ArgumentBase<Name>::state_) {
-            case util::ParseState::Start:
-                break;
-            case util::ParseState::Seeking:
-                break;
-            case util::ParseState::End:
-                std::println("ERROR! Duplicate value of {}", arg);
-                std::exit(1);
-                break;
-        }
-        if (arg == Name.PrintableView()) {
-            std::println("Arg Match: {}", arg);
-            std::println("Name.len: {}", Name.PrintableView().size());
-            std::println("arg.len: {}", arg.size());
-            std::println();
-        }
-    }
+struct Argument final {
+    static_assert(false, "Use a specialized version of this struct");
 };
 
+/// Specialization to specify an argument that can receive one or more
+/// args
 template <util::ComptimeString Name, class T, auto Converter>
+    requires std::regular_invocable<decltype(Converter), std::string_view>
 struct Argument<Name, T, NArgs::Many, Converter> : ArgumentBase<Name> {
     static_assert(!std::is_same_v<void, T>,
                   "Flag arguments cannot be of type void");
 
-    static inline constexpr void TryParseValue(std::string_view _) {}
+    static inline constexpr void TryParseValue(std::string_view arg) {
+        switch (ArgumentBase<Name>::state_) {
+            case util::ParseState::Start:
+            case util::ParseState::End:
+                // ignore
+                break;
+            case util::ParseState::Seeking:
+                value.emplace_back(Converter(arg));
+                break;
+        }
+    }
     static inline constexpr void TryParseFlag(std::string_view arg) {
-        if (arg == Name.PrintableView()) {
+        constexpr std::string_view name{Name.PrintableView()};
+        switch (ArgumentBase<Name>::state_) {
+            case util::ParseState::Start:
+                if (name == arg) {
+                    ArgumentBase<Name>::state_ = util::ParseState::Seeking;
+                }
+                break;
+            case util::ParseState::Seeking:
+                if (name == arg) {
+                    std::println("ERROR! Duplicate option: {}", name);
+                    std::exit(1);
+                } else if (!value.size()) {
+                    std::println(
+                        "ERROR! Do not specify {} and supply no arguments",
+                        name);
+                    std::exit(1);
+                } else {
+                    ArgumentBase<Name>::state_ = util::ParseState::End;
+                }
+                break;
+            case util::ParseState::End:
+                if (name == arg) {
+                    std::println("ERROR! Duplicate option: {}", name);
+                    std::exit(1);
+                }
+                break;
         }
     }
 
     // TODO(SEP): maybe take a template-template parameter to not force vector?
-    std::vector<T> value{};
+    static inline std::vector<T> value{};
 };
 
 template <class T, auto Converter>
@@ -154,11 +147,29 @@ struct Argument<"", T, NArgs::Many, Converter> : ArgumentBase<""> {
     static_assert(!std::is_same_v<void, T>,
                   "Positional arguments cannot be of type void");
 
-    static inline constexpr void TryParseValue(std::string_view _) {}
-    static inline constexpr void TryParseFlag(std::string_view _) {}
+    static inline constexpr void TryParseValue(std::string_view _) {
+        switch (ArgumentBase<"">::state_) {
+            case util::ParseState::Start:
+                break;
+            case util::ParseState::Seeking:
+                break;
+            case util::ParseState::End:
+                break;
+        }
+    }
+    static inline constexpr void TryParseFlag(std::string_view _) {
+        switch (ArgumentBase<"">::state_) {
+            case util::ParseState::Start:
+                break;
+            case util::ParseState::Seeking:
+                break;
+            case util::ParseState::End:
+                break;
+        }
+    }
 
     // TODO(SEP): maybe take a template-template parameter to not force vector?
-    std::vector<T> value{};
+    static inline std::vector<T> value{};
 };
 
 template <util::ComptimeString Name, class T, auto Converter>
@@ -166,12 +177,33 @@ struct Argument<Name, T, NArgs::None, Converter> : ArgumentBase<Name> {
     static_assert(std::is_same_v<void, T>,
                   "A flag returning no values cannot have a non-void type");
 
-    static inline constexpr void TryParseValue(std::string_view _) {}
-    static inline constexpr void TryParseFlag(std::string_view _) {}
+    static inline constexpr void TryParseValue(std::string_view _) {
+        switch (ArgumentBase<Name>::state_) {
+            case util::ParseState::Start:
+                break;
+            case util::ParseState::Seeking:
+                break;
+            case util::ParseState::End:
+                break;
+        }
+    }
+    static inline constexpr void TryParseFlag(std::string_view _) {
+        switch (ArgumentBase<Name>::state_) {
+            case util::ParseState::Start:
+                break;
+            case util::ParseState::Seeking:
+                break;
+            case util::ParseState::End:
+                break;
+        }
+    }
 
     // TODO(SEP): maybe take a template-template parameter to not force vector?
-    bool value{};
+    static inline bool value{};
 };
+
+template <util::ComptimeString Name>
+using BooleanArgument = Argument<Name, void, NArgs::None, nullptr>;
 
 template <util::ComptimeString Name, class T, auto Converter>
     requires std::regular_invocable<decltype(Converter), std::string_view>
@@ -185,7 +217,7 @@ struct Argument<Name, T, NArgs::One, Converter> : ArgumentBase<Name> {
             case util::ParseState::End:
                 break;
             case util::ParseState::Seeking:
-                Argument::value = Converter(arg);
+                value = Converter(arg);
                 ArgumentBase<Name>::state_ = util::ParseState::End;
                 break;
         }
