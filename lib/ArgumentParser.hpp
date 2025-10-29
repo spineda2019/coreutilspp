@@ -180,24 +180,21 @@ struct Argument<Name, T, NArgs::None, Converter> : ArgumentBase<Name> {
     static_assert(std::is_same_v<void, T>,
                   "A flag returning no values cannot have a non-void type");
 
-    static inline constexpr void TryParseValue(std::string_view _) {
-        switch (ArgumentBase<Name>::state_) {
-            case util::ParseState::Start:
-                break;
-            case util::ParseState::Seeking:
-                break;
-            case util::ParseState::End:
-                break;
-        }
-    }
-    static inline constexpr void TryParseFlag(std::string_view _) {
-        switch (ArgumentBase<Name>::state_) {
-            case util::ParseState::Start:
-                break;
-            case util::ParseState::Seeking:
-                break;
-            case util::ParseState::End:
-                break;
+    static inline constexpr void TryParseValue(std::string_view _) {}
+    static inline constexpr void TryParseFlag(std::string_view arg) {
+        constexpr std::string_view name{Name.PrintableView()};
+        if (arg == name) {
+            switch (ArgumentBase<Name>::state_) {
+                case util::ParseState::Start:
+                    value = true;
+                    ArgumentBase<Name>::state_ = util::ParseState::End;
+                    break;
+                case util::ParseState::Seeking:
+                case util::ParseState::End:
+                    std::println("ERROR! Duplicate option: {}", name);
+                    std::exit(1);
+                    break;
+            }
         }
     }
 
