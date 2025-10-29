@@ -172,6 +172,9 @@ struct Argument<"", T, NArgs::Many, Converter> : ArgumentBase<""> {
     static inline std::vector<T> value{};
 };
 
+template <class T, auto Converter>
+using PositionalArguments = Argument<"", T, NArgs::Many, Converter>;
+
 template <util::ComptimeString Name, class T, auto Converter>
 struct Argument<Name, T, NArgs::None, Converter> : ArgumentBase<Name> {
     static_assert(std::is_same_v<void, T>,
