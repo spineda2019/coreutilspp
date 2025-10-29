@@ -142,30 +142,28 @@ struct Argument<Name, T, NArgs::Many, Converter> : ArgumentBase<Name> {
     static inline std::vector<T> value{};
 };
 
+template <util::ComptimeString Name, class T, auto Converter>
+using MultiValueArgument = Argument<Name, T, NArgs::Many, Converter>;
+
 template <class T, auto Converter>
 struct Argument<"", T, NArgs::Many, Converter> : ArgumentBase<""> {
     static_assert(!std::is_same_v<void, T>,
                   "Positional arguments cannot be of type void");
 
-    static inline constexpr void TryParseValue(std::string_view _) {
+    static inline constexpr void TryParseValue(std::string_view arg) {
         switch (ArgumentBase<"">::state_) {
             case util::ParseState::Start:
-                break;
+                ArgumentBase<"">::state_ = util::ParseState::Seeking;
+                // NOTE: fallthrough
             case util::ParseState::Seeking:
+                value.emplace_back(Converter(arg));
                 break;
             case util::ParseState::End:
                 break;
         }
     }
     static inline constexpr void TryParseFlag(std::string_view _) {
-        switch (ArgumentBase<"">::state_) {
-            case util::ParseState::Start:
-                break;
-            case util::ParseState::Seeking:
-                break;
-            case util::ParseState::End:
-                break;
-        }
+        ArgumentBase<"">::state_ = util::ParseState::End;
     }
 
     // TODO(SEP): maybe take a template-template parameter to not force vector?
@@ -243,6 +241,9 @@ struct Argument<Name, T, NArgs::One, Converter> : ArgumentBase<Name> {
     // TODO(SEP): maybe take a template-template parameter to not force vector?
     static inline T value{};
 };
+
+template <util::ComptimeString Name, class T, auto Converter>
+using SingleValueArgument = Argument<Name, T, NArgs::One, Converter>;
 
 template <util::ComptimeString Name, util::ComptimeString Version, Arg... Args>
 class ArgumentParser final {
