@@ -12,6 +12,8 @@
 #include <print>
 #include <span>
 #include <string_view>
+#include <type_traits>
+#include <vector>
 
 namespace coreutils {
 
@@ -47,11 +49,24 @@ static consteval std::string_view CreateHelpView() {
     }
 }
 
+/// Represents a possible state of an Argument As it goes along the parsing
+/// process. State transitions should be 100% deterministic and proceed
+/// with each token consumed from the command line. This should theortically
+/// be modelable with a DFA:
+///
+enum class ParseState : std::uint8_t {
+    Start,
+    Seeking,
+    End,
+};
+
+static inline ParseState state_{ParseState::Start};
 }  // namespace util
 
 template <class T>
 concept Arg = requires(T arg) {
     std::same_as<std::string_view, decltype(T::help_view_)>;
+    T::value;
 };
 
 enum struct NArgs : std::uint8_t {
@@ -60,42 +75,141 @@ enum struct NArgs : std::uint8_t {
     Many,  // e.g. --names bob sally mary ...
 };
 
-template <util::ComptimeString Name, class T, NArgs N>
-struct Argument final {
+template <util::ComptimeString Name>
+struct ArgumentBase {
     static inline constexpr std::string_view help_view_{
         util::CreateHelpView<Name>()};
 
+ protected:
+    static inline util::ParseState state_{util::ParseState::Start};
+};
+
+template <util::ComptimeString Name, class T, NArgs N, auto Converter>
+struct Argument final : ArgumentBase<Name> {
     static inline constexpr void TryParseValue(std::string_view arg) {
+        switch (ArgumentBase<Name>::state_) {
+            case util::ParseState::Start:
+                // Can possibly ignore
+                break;
+            case util::ParseState::Seeking:
+                switch (N) {
+                    case NArgs::Many:
+                        break;
+                    case NArgs::One:
+                        // One and done
+                        break;
+                    case NArgs::None:
+                        break;
+                }
+                break;
+            case util::ParseState::End:
+                std::println(
+                    "ERROR! Unexpected value {} for flag in process {}", arg,
+                    Name.PrintableView());
+                std::exit(1);
+                break;
+        }
         if (arg == Name.PrintableView()) {
             std::println("I am {} and I got ", Name.PrintableView());
         }
     }
 
     static inline constexpr void TryParseFlag(std::string_view arg) {
+        switch (ArgumentBase<Name>::state_) {
+            case util::ParseState::Start:
+                break;
+            case util::ParseState::Seeking:
+                break;
+            case util::ParseState::End:
+                std::println("ERROR! Duplicate value of {}", arg);
+                std::exit(1);
+                break;
+        }
         if (arg == Name.PrintableView()) {
-            switch (state_) {
-                case ParseState::Start:
-                    std::println("First encounter of {}", arg);
-                    state_ = ParseState::End;
-                    break;
-                case ParseState::End:
-                    std::println("ERROR! Duplicate {}", arg);
-                    break;
-            }
             std::println("Arg Match: {}", arg);
             std::println("Name.len: {}", Name.PrintableView().size());
             std::println("arg.len: {}", arg.size());
             std::println();
         }
     }
+};
 
- private:
-    enum class ParseState : std::uint8_t {
-        Start,
-        End,
-    };
+template <util::ComptimeString Name, class T, auto Converter>
+struct Argument<Name, T, NArgs::Many, Converter> : ArgumentBase<Name> {
+    static_assert(!std::is_same_v<void, T>,
+                  "Flag arguments cannot be of type void");
 
-    static inline ParseState state_{ParseState::Start};
+    static inline constexpr void TryParseValue(std::string_view _) {}
+    static inline constexpr void TryParseFlag(std::string_view arg) {
+        if (arg == Name.PrintableView()) {
+        }
+    }
+
+    // TODO(SEP): maybe take a template-template parameter to not force vector?
+    std::vector<T> value{};
+};
+
+template <class T, auto Converter>
+struct Argument<"", T, NArgs::Many, Converter> : ArgumentBase<""> {
+    static_assert(!std::is_same_v<void, T>,
+                  "Positional arguments cannot be of type void");
+
+    static inline constexpr void TryParseValue(std::string_view _) {}
+    static inline constexpr void TryParseFlag(std::string_view _) {}
+
+    // TODO(SEP): maybe take a template-template parameter to not force vector?
+    std::vector<T> value{};
+};
+
+template <util::ComptimeString Name, class T, auto Converter>
+struct Argument<Name, T, NArgs::None, Converter> : ArgumentBase<Name> {
+    static_assert(std::is_same_v<void, T>,
+                  "A flag returning no values cannot have a non-void type");
+
+    static inline constexpr void TryParseValue(std::string_view _) {}
+    static inline constexpr void TryParseFlag(std::string_view _) {}
+
+    // TODO(SEP): maybe take a template-template parameter to not force vector?
+    bool value{};
+};
+
+template <util::ComptimeString Name, class T, auto Converter>
+    requires std::regular_invocable<decltype(Converter), std::string_view>
+struct Argument<Name, T, NArgs::One, Converter> : ArgumentBase<Name> {
+    static_assert(!std::is_same_v<void, T>,
+                  "Flag argument cannot be of type void");
+
+    static inline constexpr void TryParseValue(std::string_view arg) {
+        switch (ArgumentBase<Name>::state_) {
+            case util::ParseState::Start:
+            case util::ParseState::End:
+                break;
+            case util::ParseState::Seeking:
+                Argument::value = Converter(arg);
+                ArgumentBase<Name>::state_ = util::ParseState::End;
+                break;
+        }
+    }
+    static inline constexpr void TryParseFlag(std::string_view arg) {
+        constexpr auto name{Name.PrintableView()};
+        switch (ArgumentBase<Name>::state_) {
+            case util::ParseState::Start:
+                if (arg == name) {
+                    ArgumentBase<Name>::state_ = util::ParseState::Seeking;
+                }
+                break;
+            case util::ParseState::Seeking:
+            case util::ParseState::End:
+                if (arg == name) {
+                    std::println("ERROR: unexpected repeated flag: {}", name);
+                    std::exit(1);
+                }
+                break;
+        }
+    }
+
+    // TODO(SEP): maybe take a template-template parameter to not force vector?
+    static inline T value{};
 };
 
 template <util::ComptimeString Name, util::ComptimeString Version, Arg... Args>
