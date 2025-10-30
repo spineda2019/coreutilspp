@@ -55,21 +55,13 @@ enum class ParseState : std::uint8_t {
     End,
 };
 
-}  // namespace util
-
-template <class T>
-concept Arg = requires(T arg) {
-    std::same_as<std::string_view, decltype(T::help_view_)>;
-    T::value;
-};
-
 enum struct NArgs : std::uint8_t {
     None,  // e.g. --verbose
     One,   // e.g. --directory foo/bar
     Many,  // e.g. --names bob sally mary ...
 };
 
-template <util::ComptimeString PrimaryName, util::ComptimeString... Aliases>
+template <ComptimeString PrimaryName, ComptimeString... Aliases>
 struct ArgumentBase {
     static_assert(PrimaryName.PrintableView().starts_with("-"),
                   "Primary Argument name must start with a -");
@@ -81,7 +73,7 @@ struct ArgumentBase {
         PrimaryName.PrintableView()};
 
  protected:
-    util::ParseState state_{util::ParseState::Start};
+    ParseState state_{ParseState::Start};
 };
 
 template <>
@@ -92,18 +84,17 @@ struct ArgumentBase<""> {
         "Positional Arguments..."};
 
  protected:
-    util::ParseState state_{util::ParseState::Start};
+    ParseState state_{ParseState::Start};
 };
 
-template <class ParseType, NArgs N, auto Converter,
-          util::ComptimeString... Names>
+template <class ParseType, NArgs N, auto Converter, ComptimeString... Names>
 struct Argument final {
     static_assert(false, "Use a specialized version of this struct");
 };
 
 /// Specialization to specify an argument that can receive one or more
 /// args
-template <class T, auto Converter, util::ComptimeString... Names>
+template <class T, auto Converter, ComptimeString... Names>
     requires std::regular_invocable<decltype(Converter), std::string_view>
 struct Argument<T, NArgs::Many, Converter, Names...> : ArgumentBase<Names...> {
     static_assert(!std::is_same_v<void, T>,
@@ -111,11 +102,11 @@ struct Argument<T, NArgs::Many, Converter, Names...> : ArgumentBase<Names...> {
 
     constexpr void TryParseValue(std::string_view arg) {
         switch (ArgumentBase<Names...>::state_) {
-            case util::ParseState::Start:
-            case util::ParseState::End:
+            case ParseState::Start:
+            case ParseState::End:
                 // ignore
                 break;
-            case util::ParseState::Seeking:
+            case ParseState::Seeking:
                 value.emplace_back(Converter(arg));
                 break;
         }
@@ -126,12 +117,12 @@ struct Argument<T, NArgs::Many, Converter, Names...> : ArgumentBase<Names...> {
             [arg](std::string_view name) { return name == arg; })};
 
         switch (ArgumentBase<Names...>::state_) {
-            case util::ParseState::Start:
+            case ParseState::Start:
                 if (is_this) {
-                    ArgumentBase<Names...>::state_ = util::ParseState::Seeking;
+                    ArgumentBase<Names...>::state_ = ParseState::Seeking;
                 }
                 break;
-            case util::ParseState::Seeking:
+            case ParseState::Seeking:
                 if (is_this) {
                     throw std::runtime_error{
                         std::format("ERROR! Duplicate option: {}", arg)};
@@ -140,10 +131,10 @@ struct Argument<T, NArgs::Many, Converter, Names...> : ArgumentBase<Names...> {
                         "ERROR! Do not specify {} and supply no arguments",
                         arg)};
                 } else {
-                    ArgumentBase<Names...>::state_ = util::ParseState::End;
+                    ArgumentBase<Names...>::state_ = ParseState::End;
                 }
                 break;
-            case util::ParseState::End:
+            case ParseState::End:
                 if (is_this) {
                     throw std::runtime_error{
                         std::format("ERROR! Duplicate option: {}", arg)};
@@ -156,9 +147,6 @@ struct Argument<T, NArgs::Many, Converter, Names...> : ArgumentBase<Names...> {
     std::vector<T> value{};
 };
 
-template <class T, auto Converter, util::ComptimeString... Names>
-using MultiValueArgument = Argument<T, NArgs::Many, Converter, Names...>;
-
 template <class T, auto Converter>
 struct Argument<T, NArgs::Many, Converter, ""> : ArgumentBase<""> {
     static_assert(!std::is_same_v<void, T>,
@@ -166,28 +154,25 @@ struct Argument<T, NArgs::Many, Converter, ""> : ArgumentBase<""> {
 
     constexpr void TryParseValue(std::string_view arg) {
         switch (this->state_) {
-            case util::ParseState::Start:
-                ArgumentBase<"">::state_ = util::ParseState::Seeking;
+            case ParseState::Start:
+                ArgumentBase<"">::state_ = ParseState::Seeking;
                 // NOTE: fallthrough
-            case util::ParseState::Seeking:
+            case ParseState::Seeking:
                 value.emplace_back(Converter(arg));
                 break;
-            case util::ParseState::End:
+            case ParseState::End:
                 break;
         }
     }
     constexpr void TryParseFlag(std::string_view _) {
-        ArgumentBase<"">::state_ = util::ParseState::End;
+        ArgumentBase<"">::state_ = ParseState::End;
     }
 
     // TODO(SEP): maybe take a template-template parameter to not force vector?
     std::vector<T> value{};
 };
 
-template <class T, auto Converter>
-using PositionalArguments = Argument<T, NArgs::Many, Converter, "">;
-
-template <class T, auto Converter, util::ComptimeString... Names>
+template <class T, auto Converter, ComptimeString... Names>
 struct Argument<T, NArgs::None, Converter, Names...> : ArgumentBase<Names...> {
     static_assert(std::is_same_v<void, T>,
                   "A flag returning no values cannot have a non-void type");
@@ -200,12 +185,12 @@ struct Argument<T, NArgs::None, Converter, Names...> : ArgumentBase<Names...> {
 
         if (is_this) {
             switch (this->state_) {
-                case util::ParseState::Start:
+                case ParseState::Start:
                     value = true;
-                    this->state_ = util::ParseState::End;
+                    this->state_ = ParseState::End;
                     break;
-                case util::ParseState::Seeking:
-                case util::ParseState::End:
+                case ParseState::Seeking:
+                case ParseState::End:
                     throw std::runtime_error{
                         std::format("ERROR! Duplicate option: {}", arg)};
                     break;
@@ -217,10 +202,7 @@ struct Argument<T, NArgs::None, Converter, Names...> : ArgumentBase<Names...> {
     bool value{};
 };
 
-template <util::ComptimeString... Names>
-using BooleanArgument = Argument<void, NArgs::None, nullptr, Names...>;
-
-template <class T, auto&& Converter, util::ComptimeString... Names>
+template <class T, auto&& Converter, ComptimeString... Names>
     requires std::regular_invocable<decltype(Converter), std::string_view>
 struct Argument<T, NArgs::One, Converter, Names...> : ArgumentBase<Names...> {
     static_assert(!std::is_same_v<void, T>,
@@ -228,12 +210,12 @@ struct Argument<T, NArgs::One, Converter, Names...> : ArgumentBase<Names...> {
 
     constexpr void TryParseValue(std::string_view arg) {
         switch (this->state_) {
-            case util::ParseState::Start:
-            case util::ParseState::End:
+            case ParseState::Start:
+            case ParseState::End:
                 break;
-            case util::ParseState::Seeking:
+            case ParseState::Seeking:
                 value = std::invoke(Converter, arg);
-                ArgumentBase<Names...>::state_ = util::ParseState::End;
+                ArgumentBase<Names...>::state_ = ParseState::End;
                 break;
         }
     }
@@ -243,13 +225,13 @@ struct Argument<T, NArgs::One, Converter, Names...> : ArgumentBase<Names...> {
             [arg](std::string_view name) { return name == arg; })};
 
         switch (ArgumentBase<Names...>::state_) {
-            case util::ParseState::Start:
+            case ParseState::Start:
                 if (is_this) {
-                    this->state_ = util::ParseState::Seeking;
+                    this->state_ = ParseState::Seeking;
                 }
                 break;
-            case util::ParseState::Seeking:
-            case util::ParseState::End:
+            case ParseState::Seeking:
+            case ParseState::End:
                 if (is_this) {
                     throw std::runtime_error{std::format(
                         "ERROR: unexpected repeated flag: {}", arg)};
@@ -261,9 +243,28 @@ struct Argument<T, NArgs::One, Converter, Names...> : ArgumentBase<Names...> {
     // TODO(SEP): maybe take a template-template parameter to not force vector?
     T value{};
 };
+}  // namespace util
 
 template <class T, auto Converter, util::ComptimeString... Names>
-using SingleValueArgument = Argument<T, NArgs::One, Converter, Names...>;
+using MultiValueArgument =
+    util::Argument<T, util::NArgs::Many, Converter, Names...>;
+
+template <class T, auto Converter>
+using PositionalArguments = util::Argument<T, util::NArgs::Many, Converter, "">;
+
+template <util::ComptimeString... Names>
+using BooleanArgument =
+    util::Argument<void, util::NArgs::None, nullptr, Names...>;
+
+template <class T, auto Converter, util::ComptimeString... Names>
+using SingleValueArgument =
+    util::Argument<T, util::NArgs::One, Converter, Names...>;
+
+template <class T>
+concept Arg = requires(T arg) {
+    std::same_as<std::string_view, decltype(T::help_view_)>;
+    T::value;
+};
 
 template <util::ComptimeString Name, util::ComptimeString Version, Arg... Args>
 class ArgumentParser final {
