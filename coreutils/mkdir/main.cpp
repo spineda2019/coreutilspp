@@ -12,20 +12,18 @@
 #include "lib/ArgumentParser.hpp"
 
 int main(int argc, const char** argv) {
-    using Verbose = coreutils::BooleanArgument<"-V">;
-    using Test =
-        coreutils::SingleValueArgument<"-t", int, [](std::string_view view) {
-            return std::stoi(std::string{view});
-        }>;
+    using Verbose = coreutils::BooleanArgument<"-V", "--verbose">;
+    using Test = coreutils::SingleValueArgument<
+        int, [](std::string_view view) { return std::stoi(std::string{view}); },
+        "-t">;
     using Dirs =
         coreutils::PositionalArguments<std::filesystem::path,
                                        [](std::string_view view) {
                                            return std::filesystem::path{view};
                                        }>;
-    using Names = coreutils::MultiValueArgument<"-n", std::string,
-                                                [](std::string_view view) {
-                                                    return std::string{view};
-                                                }>;
+    using Names = coreutils::MultiValueArgument<
+        std::string, [](std::string_view view) { return std::string{view}; },
+        "-n">;
 
     coreutils::ArgumentParser<"mkdir", "0.0.1", Verbose, Dirs, Test, Names>
         parser{argc, argv};

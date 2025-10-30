@@ -42,16 +42,6 @@ struct ComptimeString final {
     std::array<char, Length - 1> name_;
 };
 
-template <util::ComptimeString Name>
-static inline consteval std::string_view CreateHelpView() {
-    if constexpr (!Name.name_.size()) {
-        static constexpr std::string_view pos{"Positional Arguments..."};
-        return pos;
-    } else {
-        return Name.PrintableView();
-    }
-}
-
 /// Represents a possible state of an Argument As it goes along the parsing
 /// process. State transitions should be 100% deterministic and proceed
 /// with each token consumed from the command line. This should theortically
@@ -77,30 +67,48 @@ enum struct NArgs : std::uint8_t {
     Many,  // e.g. --names bob sally mary ...
 };
 
-template <util::ComptimeString Name>
+template <util::ComptimeString PrimaryName, util::ComptimeString... Aliases>
 struct ArgumentBase {
+    static_assert(PrimaryName.PrintableView().starts_with("-"),
+                  "Primary Argument name must start with a -");
+
+    static inline constexpr std::array<std::string_view, sizeof...(Aliases) + 1>
+        names_{PrimaryName.PrintableView(), Aliases.PrintableView()...};
+
     static inline constexpr std::string_view help_view_{
-        util::CreateHelpView<Name>()};
+        PrimaryName.PrintableView()};
 
  protected:
     util::ParseState state_{util::ParseState::Start};
 };
 
-template <util::ComptimeString Name, class T, NArgs N, auto Converter>
+template <>
+struct ArgumentBase<""> {
+    static inline constexpr std::array<std::string_view, 0> names_{};
+
+    static inline constexpr std::string_view help_view_{
+        "Positional Arguments..."};
+
+ protected:
+    util::ParseState state_{util::ParseState::Start};
+};
+
+template <class ParseType, NArgs N, auto Converter,
+          util::ComptimeString... Names>
 struct Argument final {
     static_assert(false, "Use a specialized version of this struct");
 };
 
 /// Specialization to specify an argument that can receive one or more
 /// args
-template <util::ComptimeString Name, class T, auto Converter>
+template <class T, auto Converter, util::ComptimeString... Names>
     requires std::regular_invocable<decltype(Converter), std::string_view>
-struct Argument<Name, T, NArgs::Many, Converter> : ArgumentBase<Name> {
+struct Argument<T, NArgs::Many, Converter, Names...> : ArgumentBase<Names...> {
     static_assert(!std::is_same_v<void, T>,
                   "Flag arguments cannot be of type void");
 
     constexpr void TryParseValue(std::string_view arg) {
-        switch (ArgumentBase<Name>::state_) {
+        switch (ArgumentBase<Names...>::state_) {
             case util::ParseState::Start:
             case util::ParseState::End:
                 // ignore
@@ -111,29 +119,32 @@ struct Argument<Name, T, NArgs::Many, Converter> : ArgumentBase<Name> {
         }
     }
     constexpr void TryParseFlag(std::string_view arg) {
-        constexpr std::string_view name{Name.PrintableView()};
-        switch (ArgumentBase<Name>::state_) {
+        bool is_this{std::ranges::any_of(
+            ArgumentBase<Names...>::names_,
+            [arg](std::string_view name) { return name == arg; })};
+
+        switch (ArgumentBase<Names...>::state_) {
             case util::ParseState::Start:
-                if (name == arg) {
-                    ArgumentBase<Name>::state_ = util::ParseState::Seeking;
+                if (is_this) {
+                    ArgumentBase<Names...>::state_ = util::ParseState::Seeking;
                 }
                 break;
             case util::ParseState::Seeking:
-                if (name == arg) {
+                if (is_this) {
                     throw std::runtime_error{
-                        std::format("ERROR! Duplicate option: {}", name)};
+                        std::format("ERROR! Duplicate option: {}", arg)};
                 } else if (!value.size()) {
                     throw std::runtime_error{std::format(
                         "ERROR! Do not specify {} and supply no arguments",
-                        name)};
+                        arg)};
                 } else {
-                    ArgumentBase<Name>::state_ = util::ParseState::End;
+                    ArgumentBase<Names...>::state_ = util::ParseState::End;
                 }
                 break;
             case util::ParseState::End:
-                if (name == arg) {
+                if (is_this) {
                     throw std::runtime_error{
-                        std::format("ERROR! Duplicate option: {}", name)};
+                        std::format("ERROR! Duplicate option: {}", arg)};
                 }
                 break;
         }
@@ -143,11 +154,11 @@ struct Argument<Name, T, NArgs::Many, Converter> : ArgumentBase<Name> {
     std::vector<T> value{};
 };
 
-template <util::ComptimeString Name, class T, auto Converter>
-using MultiValueArgument = Argument<Name, T, NArgs::Many, Converter>;
+template <class T, auto Converter, util::ComptimeString... Names>
+using MultiValueArgument = Argument<T, NArgs::Many, Converter, Names...>;
 
 template <class T, auto Converter>
-struct Argument<"", T, NArgs::Many, Converter> : ArgumentBase<""> {
+struct Argument<T, NArgs::Many, Converter, ""> : ArgumentBase<""> {
     static_assert(!std::is_same_v<void, T>,
                   "Positional arguments cannot be of type void");
 
@@ -172,17 +183,20 @@ struct Argument<"", T, NArgs::Many, Converter> : ArgumentBase<""> {
 };
 
 template <class T, auto Converter>
-using PositionalArguments = Argument<"", T, NArgs::Many, Converter>;
+using PositionalArguments = Argument<T, NArgs::Many, Converter, "">;
 
-template <util::ComptimeString Name, class T, auto Converter>
-struct Argument<Name, T, NArgs::None, Converter> : ArgumentBase<Name> {
+template <class T, auto Converter, util::ComptimeString... Names>
+struct Argument<T, NArgs::None, Converter, Names...> : ArgumentBase<Names...> {
     static_assert(std::is_same_v<void, T>,
                   "A flag returning no values cannot have a non-void type");
 
     constexpr void TryParseValue(std::string_view _) {}
     constexpr void TryParseFlag(std::string_view arg) {
-        constexpr std::string_view name{Name.PrintableView()};
-        if (arg == name) {
+        bool is_this{std::ranges::any_of(
+            ArgumentBase<Names...>::names_,
+            [arg](std::string_view name) { return name == arg; })};
+
+        if (is_this) {
             switch (this->state_) {
                 case util::ParseState::Start:
                     value = true;
@@ -191,7 +205,7 @@ struct Argument<Name, T, NArgs::None, Converter> : ArgumentBase<Name> {
                 case util::ParseState::Seeking:
                 case util::ParseState::End:
                     throw std::runtime_error{
-                        std::format("ERROR! Duplicate option: {}", name)};
+                        std::format("ERROR! Duplicate option: {}", arg)};
                     break;
             }
         }
@@ -201,12 +215,12 @@ struct Argument<Name, T, NArgs::None, Converter> : ArgumentBase<Name> {
     bool value{};
 };
 
-template <util::ComptimeString Name>
-using BooleanArgument = Argument<Name, void, NArgs::None, nullptr>;
+template <util::ComptimeString... Names>
+using BooleanArgument = Argument<void, NArgs::None, nullptr, Names...>;
 
-template <util::ComptimeString Name, class T, auto Converter>
+template <class T, auto Converter, util::ComptimeString... Names>
     requires std::regular_invocable<decltype(Converter), std::string_view>
-struct Argument<Name, T, NArgs::One, Converter> : ArgumentBase<Name> {
+struct Argument<T, NArgs::One, Converter, Names...> : ArgumentBase<Names...> {
     static_assert(!std::is_same_v<void, T>,
                   "Flag argument cannot be of type void");
 
@@ -217,23 +231,26 @@ struct Argument<Name, T, NArgs::One, Converter> : ArgumentBase<Name> {
                 break;
             case util::ParseState::Seeking:
                 value = Converter(arg);
-                ArgumentBase<Name>::state_ = util::ParseState::End;
+                ArgumentBase<Names...>::state_ = util::ParseState::End;
                 break;
         }
     }
     constexpr void TryParseFlag(std::string_view arg) {
-        constexpr auto name{Name.PrintableView()};
-        switch (ArgumentBase<Name>::state_) {
+        bool is_this{std::ranges::any_of(
+            ArgumentBase<Names...>::names_,
+            [arg](std::string_view name) { return name == arg; })};
+
+        switch (ArgumentBase<Names...>::state_) {
             case util::ParseState::Start:
-                if (arg == name) {
+                if (is_this) {
                     this->state_ = util::ParseState::Seeking;
                 }
                 break;
             case util::ParseState::Seeking:
             case util::ParseState::End:
-                if (arg == name) {
+                if (is_this) {
                     throw std::runtime_error{std::format(
-                        "ERROR: unexpected repeated flag: {}", name)};
+                        "ERROR: unexpected repeated flag: {}", arg)};
                 }
                 break;
         }
@@ -243,8 +260,8 @@ struct Argument<Name, T, NArgs::One, Converter> : ArgumentBase<Name> {
     T value{};
 };
 
-template <util::ComptimeString Name, class T, auto Converter>
-using SingleValueArgument = Argument<Name, T, NArgs::One, Converter>;
+template <class T, auto Converter, util::ComptimeString... Names>
+using SingleValueArgument = Argument<T, NArgs::One, Converter, Names...>;
 
 template <util::ComptimeString Name, util::ComptimeString Version, Arg... Args>
 class ArgumentParser final {
