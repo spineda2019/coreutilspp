@@ -10,12 +10,14 @@
 #include <cstdint>
 #include <cstdlib>
 #include <format>
+#include <functional>
 #include <print>
 #include <span>
 #include <stdexcept>
 #include <string_view>
 #include <tuple>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 namespace coreutils {
@@ -218,7 +220,7 @@ struct Argument<T, NArgs::None, Converter, Names...> : ArgumentBase<Names...> {
 template <util::ComptimeString... Names>
 using BooleanArgument = Argument<void, NArgs::None, nullptr, Names...>;
 
-template <class T, auto Converter, util::ComptimeString... Names>
+template <class T, auto&& Converter, util::ComptimeString... Names>
     requires std::regular_invocable<decltype(Converter), std::string_view>
 struct Argument<T, NArgs::One, Converter, Names...> : ArgumentBase<Names...> {
     static_assert(!std::is_same_v<void, T>,
@@ -230,7 +232,7 @@ struct Argument<T, NArgs::One, Converter, Names...> : ArgumentBase<Names...> {
             case util::ParseState::End:
                 break;
             case util::ParseState::Seeking:
-                value = Converter(arg);
+                value = std::invoke(Converter, arg);
                 ArgumentBase<Names...>::state_ = util::ParseState::End;
                 break;
         }
