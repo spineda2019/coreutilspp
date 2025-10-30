@@ -14,6 +14,7 @@
 #include <span>
 #include <stdexcept>
 #include <string_view>
+#include <tuple>
 #include <type_traits>
 #include <vector>
 
@@ -42,7 +43,7 @@ struct ComptimeString final {
 };
 
 template <util::ComptimeString Name>
-static consteval std::string_view CreateHelpView() {
+static inline consteval std::string_view CreateHelpView() {
     if constexpr (!Name.name_.size()) {
         static constexpr std::string_view pos{"Positional Arguments..."};
         return pos;
@@ -62,7 +63,6 @@ enum class ParseState : std::uint8_t {
     End,
 };
 
-static inline ParseState state_{ParseState::Start};
 }  // namespace util
 
 template <class T>
@@ -83,7 +83,7 @@ struct ArgumentBase {
         util::CreateHelpView<Name>()};
 
  protected:
-    static inline util::ParseState state_{util::ParseState::Start};
+    util::ParseState state_{util::ParseState::Start};
 };
 
 template <util::ComptimeString Name, class T, NArgs N, auto Converter>
@@ -99,7 +99,7 @@ struct Argument<Name, T, NArgs::Many, Converter> : ArgumentBase<Name> {
     static_assert(!std::is_same_v<void, T>,
                   "Flag arguments cannot be of type void");
 
-    static inline constexpr void TryParseValue(std::string_view arg) {
+    constexpr void TryParseValue(std::string_view arg) {
         switch (ArgumentBase<Name>::state_) {
             case util::ParseState::Start:
             case util::ParseState::End:
@@ -110,7 +110,7 @@ struct Argument<Name, T, NArgs::Many, Converter> : ArgumentBase<Name> {
                 break;
         }
     }
-    static inline constexpr void TryParseFlag(std::string_view arg) {
+    constexpr void TryParseFlag(std::string_view arg) {
         constexpr std::string_view name{Name.PrintableView()};
         switch (ArgumentBase<Name>::state_) {
             case util::ParseState::Start:
@@ -140,7 +140,7 @@ struct Argument<Name, T, NArgs::Many, Converter> : ArgumentBase<Name> {
     }
 
     // TODO(SEP): maybe take a template-template parameter to not force vector?
-    static inline std::vector<T> value{};
+    std::vector<T> value{};
 };
 
 template <util::ComptimeString Name, class T, auto Converter>
@@ -151,8 +151,8 @@ struct Argument<"", T, NArgs::Many, Converter> : ArgumentBase<""> {
     static_assert(!std::is_same_v<void, T>,
                   "Positional arguments cannot be of type void");
 
-    static inline constexpr void TryParseValue(std::string_view arg) {
-        switch (ArgumentBase<"">::state_) {
+    constexpr void TryParseValue(std::string_view arg) {
+        switch (this->state_) {
             case util::ParseState::Start:
                 ArgumentBase<"">::state_ = util::ParseState::Seeking;
                 // NOTE: fallthrough
@@ -163,12 +163,12 @@ struct Argument<"", T, NArgs::Many, Converter> : ArgumentBase<""> {
                 break;
         }
     }
-    static inline constexpr void TryParseFlag(std::string_view _) {
+    constexpr void TryParseFlag(std::string_view _) {
         ArgumentBase<"">::state_ = util::ParseState::End;
     }
 
     // TODO(SEP): maybe take a template-template parameter to not force vector?
-    static inline std::vector<T> value{};
+    std::vector<T> value{};
 };
 
 template <class T, auto Converter>
@@ -179,14 +179,14 @@ struct Argument<Name, T, NArgs::None, Converter> : ArgumentBase<Name> {
     static_assert(std::is_same_v<void, T>,
                   "A flag returning no values cannot have a non-void type");
 
-    static inline constexpr void TryParseValue(std::string_view _) {}
-    static inline constexpr void TryParseFlag(std::string_view arg) {
+    constexpr void TryParseValue(std::string_view _) {}
+    constexpr void TryParseFlag(std::string_view arg) {
         constexpr std::string_view name{Name.PrintableView()};
         if (arg == name) {
-            switch (ArgumentBase<Name>::state_) {
+            switch (this->state_) {
                 case util::ParseState::Start:
                     value = true;
-                    ArgumentBase<Name>::state_ = util::ParseState::End;
+                    this->state_ = util::ParseState::End;
                     break;
                 case util::ParseState::Seeking:
                 case util::ParseState::End:
@@ -198,7 +198,7 @@ struct Argument<Name, T, NArgs::None, Converter> : ArgumentBase<Name> {
     }
 
     // TODO(SEP): maybe take a template-template parameter to not force vector?
-    static inline bool value{};
+    bool value{};
 };
 
 template <util::ComptimeString Name>
@@ -210,8 +210,8 @@ struct Argument<Name, T, NArgs::One, Converter> : ArgumentBase<Name> {
     static_assert(!std::is_same_v<void, T>,
                   "Flag argument cannot be of type void");
 
-    static inline constexpr void TryParseValue(std::string_view arg) {
-        switch (ArgumentBase<Name>::state_) {
+    constexpr void TryParseValue(std::string_view arg) {
+        switch (this->state_) {
             case util::ParseState::Start:
             case util::ParseState::End:
                 break;
@@ -221,12 +221,12 @@ struct Argument<Name, T, NArgs::One, Converter> : ArgumentBase<Name> {
                 break;
         }
     }
-    static inline constexpr void TryParseFlag(std::string_view arg) {
+    constexpr void TryParseFlag(std::string_view arg) {
         constexpr auto name{Name.PrintableView()};
         switch (ArgumentBase<Name>::state_) {
             case util::ParseState::Start:
                 if (arg == name) {
-                    ArgumentBase<Name>::state_ = util::ParseState::Seeking;
+                    this->state_ = util::ParseState::Seeking;
                 }
                 break;
             case util::ParseState::Seeking:
@@ -240,7 +240,7 @@ struct Argument<Name, T, NArgs::One, Converter> : ArgumentBase<Name> {
     }
 
     // TODO(SEP): maybe take a template-template parameter to not force vector?
-    static inline T value{};
+    T value{};
 };
 
 template <util::ComptimeString Name, class T, auto Converter>
@@ -260,9 +260,13 @@ class ArgumentParser final {
                 PrintHelp();
             } else {
                 if (arg.starts_with('-')) {
-                    (Args::TryParseFlag(arg), ...);
+                    std::apply(
+                        [arg](auto&... a) { (a.TryParseFlag(arg), ...); },
+                        arg_values_);
                 } else {
-                    (Args::TryParseValue(arg), ...);
+                    std::apply(
+                        [arg](auto&... a) { (a.TryParseValue(arg), ...); },
+                        arg_values_);
                 }
             }
         }
@@ -282,11 +286,17 @@ class ArgumentParser final {
         std::exit(0);
     }
 
+    template <class Out>
+    constexpr const Out& get() const {
+        return std::get<Out>(arg_values_);
+    }
+
  private:
     // since argc and argv should be valid for the lifetime of the main
     // function, storing this should be safe, as the lifetime of this object
     // should logically always be less than the main function.
     std::span<const char*> args_{};
+    std::tuple<Args...> arg_values_{};
 
     static constexpr std::string_view license_info_{"License info TBD."};
 };

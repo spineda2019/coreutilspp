@@ -39,17 +39,17 @@ int main(int argc, const char** argv) {
         std::println(std::cerr, "Unrecognized error occurred.");
         return 1;
     }
-    std::println("-V was: {}", Verbose::value);
-    std::println("-t was: {}", Test::value);
+    std::println("-V was: {}", parser.get<Verbose>().value);
+    std::println("-t was: {}", parser.get<Test>().value);
     std::println("-n was:");
     std::size_t count{0};
-    for (std::string_view name : Names::value) {
+    for (std::string_view name : parser.get<Names>().value) {
         ++count;
         std::println("\targ {}: {}", count, name);
     }
     std::println("Positional arguments were:");
     count = 0;
-    for (const std::filesystem::path& name : Dirs::value) {
+    for (const std::filesystem::path& name : parser.get<Dirs>().value) {
         ++count;
         std::println("\targ {}: {}", count, name.c_str());
     }
