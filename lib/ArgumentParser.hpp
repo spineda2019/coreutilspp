@@ -17,7 +17,6 @@
 #include <string_view>
 #include <tuple>
 #include <type_traits>
-#include <utility>
 #include <vector>
 
 namespace coreutils {
@@ -107,7 +106,7 @@ struct Argument<T, NArgs::Many, Converter, Names...> : ArgumentBase<Names...> {
                 // ignore
                 break;
             case ParseState::Seeking:
-                value.emplace_back(Converter(arg));
+                value.emplace_back(std::invoke(Converter, arg));
                 break;
         }
     }
@@ -158,7 +157,7 @@ struct Argument<T, NArgs::Many, Converter, ""> : ArgumentBase<""> {
                 ArgumentBase<"">::state_ = ParseState::Seeking;
                 // NOTE: fallthrough
             case ParseState::Seeking:
-                value.emplace_back(Converter(arg));
+                value.emplace_back(std::invoke(Converter, arg));
                 break;
             case ParseState::End:
                 break;
@@ -198,11 +197,10 @@ struct Argument<T, NArgs::None, Converter, Names...> : ArgumentBase<Names...> {
         }
     }
 
-    // TODO(SEP): maybe take a template-template parameter to not force vector?
     bool value{};
 };
 
-template <class T, auto&& Converter, ComptimeString... Names>
+template <class T, auto Converter, ComptimeString... Names>
     requires std::regular_invocable<decltype(Converter), std::string_view>
 struct Argument<T, NArgs::One, Converter, Names...> : ArgumentBase<Names...> {
     static_assert(!std::is_same_v<void, T>,
@@ -240,7 +238,6 @@ struct Argument<T, NArgs::One, Converter, Names...> : ArgumentBase<Names...> {
         }
     }
 
-    // TODO(SEP): maybe take a template-template parameter to not force vector?
     T value{};
 };
 }  // namespace util
@@ -254,7 +251,7 @@ using PositionalArguments = util::Argument<T, util::NArgs::Many, Converter, "">;
 
 template <util::ComptimeString... Names>
 using BooleanArgument =
-    util::Argument<void, util::NArgs::None, nullptr, Names...>;
+    util::Argument<void, util::NArgs::None, []() {}, Names...>;
 
 template <class T, auto Converter, util::ComptimeString... Names>
 using SingleValueArgument =
