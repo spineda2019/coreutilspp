@@ -9,8 +9,10 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <format>
 #include <print>
 #include <span>
+#include <stdexcept>
 #include <string_view>
 #include <type_traits>
 #include <vector>
@@ -118,21 +120,20 @@ struct Argument<Name, T, NArgs::Many, Converter> : ArgumentBase<Name> {
                 break;
             case util::ParseState::Seeking:
                 if (name == arg) {
-                    std::println("ERROR! Duplicate option: {}", name);
-                    std::exit(1);
+                    throw std::runtime_error{
+                        std::format("ERROR! Duplicate option: {}", name)};
                 } else if (!value.size()) {
-                    std::println(
+                    throw std::runtime_error{std::format(
                         "ERROR! Do not specify {} and supply no arguments",
-                        name);
-                    std::exit(1);
+                        name)};
                 } else {
                     ArgumentBase<Name>::state_ = util::ParseState::End;
                 }
                 break;
             case util::ParseState::End:
                 if (name == arg) {
-                    std::println("ERROR! Duplicate option: {}", name);
-                    std::exit(1);
+                    throw std::runtime_error{
+                        std::format("ERROR! Duplicate option: {}", name)};
                 }
                 break;
         }
@@ -189,8 +190,8 @@ struct Argument<Name, T, NArgs::None, Converter> : ArgumentBase<Name> {
                     break;
                 case util::ParseState::Seeking:
                 case util::ParseState::End:
-                    std::println("ERROR! Duplicate option: {}", name);
-                    std::exit(1);
+                    throw std::runtime_error{
+                        std::format("ERROR! Duplicate option: {}", name)};
                     break;
             }
         }
@@ -231,8 +232,8 @@ struct Argument<Name, T, NArgs::One, Converter> : ArgumentBase<Name> {
             case util::ParseState::Seeking:
             case util::ParseState::End:
                 if (arg == name) {
-                    std::println("ERROR: unexpected repeated flag: {}", name);
-                    std::exit(1);
+                    throw std::runtime_error{std::format(
+                        "ERROR: unexpected repeated flag: {}", name)};
                 }
                 break;
         }
