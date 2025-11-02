@@ -1,0 +1,30 @@
+name: CI Coreutils Build On Multiple Platforms
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - uses: mlugg/setup-zig@v2
+      with:
+        version: master
+    - name: Build x64 Linux GNU
+      run: zig build -Dtarget=x86_64-linux-gnu -p zig-out-x86_64-linux-gnu --summary all
+    - name: Build x64 Linux MUSL
+      run: zig build -Dtarget=x86_64-linux-musl -p zig-out-x86_64-linux-musl --summary all
+    - name: Build x64 Windows GNU
+      run: zig build -Dtarget=x86_64-windows-gnu -p zig-out-x86_64-windows-gnu --summary all
+    - name: Build aarch64 Windows GNU
+      run: zig build -Dtarget=aarch64-windows-gnu -p zig-out-aarch64-windows-gnu --summary all
+    - name: Build aarch64 MacOS
+      run: zig build -Dtarget=aarch64-macos -p zig-out-aarch64-macos --summary all
+    - name: Build x64 MacOS
+      run: zig build -Dtarget=x86_64-macos -p zig-out-x86_64-macos --summary all
