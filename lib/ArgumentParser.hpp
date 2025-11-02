@@ -57,10 +57,6 @@ concept IsProgramInfo = is_instance_of<T, ProgramInfo>::value;
 
 template <IsProgramInfo Program, Arg... Args>
 class ArgumentParser final {
-    static_assert(is_instance_of<Program, ProgramInfo>::value,
-                  "Program template-parameter must be instantiated from the "
-                  "ProgramInfo type");
-
  public:
     constexpr explicit ArgumentParser(int argc, const char** argv)
         : args_{argv + 1, argv + argc} {}
