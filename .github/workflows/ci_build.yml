@@ -24,8 +24,7 @@ jobs:
       run: zig build -Dtarget=aarch64-macos -p zig-out-aarch64-macos --summary all
     - name: Build x64 MacOS
       run: zig build -Dtarget=x86_64-macos -p zig-out-x86_64-macos --summary all
-    # TODO: Fix build errors on windows
-    # - name: Build x64 Windows GNU
-    #   run: zig build -Dtarget=x86_64-windows-gnu -p zig-out-x86_64-windows-gnu --summary all
-    # - name: Build aarch64 Windows GNU
-    #   run: zig build -Dtarget=aarch64-windows-gnu -p zig-out-aarch64-windows-gnu --summary all
+    - name: Build x64 Windows GNU
+      run: zig build -Dtarget=x86_64-windows-gnu -p zig-out-x86_64-windows-gnu --summary all
+    - name: Build aarch64 Windows GNU
+      run: zig build -Dtarget=aarch64-windows-gnu -p zig-out-aarch64-windows-gnu --summary all

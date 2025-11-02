@@ -36,6 +36,6 @@ int main(int argc, const char** argv) {
     std::size_t count{0};
     for (const std::filesystem::path& name : parser.get<PosArgs>().value) {
         ++count;
-        std::println("\targ {}: {}", count, name.c_str());
+        std::println("\targ {}: {}", count, name.string());
     }
 }
