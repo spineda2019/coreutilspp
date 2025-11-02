@@ -9,7 +9,9 @@
 #include "lib/ArgumentParser.hpp"
 
 int main(int argc, const char** argv) {
-    using Yes = coreutils::ProgramInfo<"yes", "0.0.1">;
+    using Yes = coreutils::ProgramInfo<
+        "yes", "0.0.1", "Usage: yes [STRING]...",
+        "Repeatedly output a line with all specified STRING(s), or 'y'.">;
     using PositionalArgs =
         coreutils::PositionalArguments<std::string_view,
                                        [](std::string_view v) { return v; }>;

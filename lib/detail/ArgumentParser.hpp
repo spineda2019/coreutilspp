@@ -83,6 +83,7 @@ struct ArgumentBase<""> {
 };
 
 template <class ParseType, NArgs N, auto Converter, ComptimeString... Names>
+    requires std::regular_invocable<decltype(Converter), std::string_view>
 struct Argument final {
     static_assert(false, "Use a specialized version of this struct");
 };
@@ -143,6 +144,7 @@ struct Argument<T, NArgs::Many, Converter, Names...> : ArgumentBase<Names...> {
 };
 
 template <class T, auto Converter>
+    requires std::regular_invocable<decltype(Converter), std::string_view>
 struct Argument<T, NArgs::Many, Converter, ""> : ArgumentBase<""> {
     static_assert(!std::is_same_v<void, T>,
                   "Positional arguments cannot be of type void");

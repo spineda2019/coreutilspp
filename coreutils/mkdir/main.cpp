@@ -12,21 +12,16 @@
 #include "lib/ArgumentParser.hpp"
 
 int main(int argc, const char** argv) {
-    using Verbose = coreutils::BooleanArgument<"-V", "--verbose">;
-    using Test = coreutils::SingleValueArgument<
-        int, [](std::string_view view) { return std::stoi(std::string{view}); },
-        "-t">;
-    using Dirs =
+    using Mkdir = coreutils::ProgramInfo<
+        "mkdir", "0.0.1", "Usage: mkdir [OPTION]... DIRECTORY...",
+        "Create the DIRECTORY(ies), if they do not already exist.">;
+    using PosArgs =
         coreutils::PositionalArguments<std::filesystem::path,
-                                       [](std::string_view view) {
-                                           return std::filesystem::path{view};
+                                       [](std::string_view arg) {
+                                           return std::filesystem::path{arg};
                                        }>;
-    using Names = coreutils::MultiValueArgument<
-        std::string, [](std::string_view view) { return std::string{view}; },
-        "-n">;
 
-    coreutils::ArgumentParser<"mkdir", "0.0.1", Verbose, Dirs, Test, Names>
-        parser{argc, argv};
+    coreutils::ArgumentParser<Mkdir, PosArgs> parser{argc, argv};
     try {
         parser.ParseArgsOrExit();
     } catch (const std::exception& ex) {
@@ -37,17 +32,9 @@ int main(int argc, const char** argv) {
         std::println(std::cerr, "Unrecognized error occurred.");
         return 1;
     }
-    std::println("-V was: {}", parser.get<Verbose>().value);
-    std::println("-t was: {}", parser.get<Test>().value);
-    std::println("-n was:");
-    std::size_t count{0};
-    for (std::string_view name : parser.get<Names>().value) {
-        ++count;
-        std::println("\targ {}: {}", count, name);
-    }
     std::println("Positional arguments were:");
-    count = 0;
-    for (const std::filesystem::path& name : parser.get<Dirs>().value) {
+    std::size_t count{0};
+    for (const std::filesystem::path& name : parser.get<PosArgs>().value) {
         ++count;
         std::println("\targ {}: {}", count, name.c_str());
     }

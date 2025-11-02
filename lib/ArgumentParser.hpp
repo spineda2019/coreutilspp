@@ -3,6 +3,7 @@
 #ifndef LIB_ARGUMENTPARSER_HPP_
 #define LIB_ARGUMENTPARSER_HPP_
 
+#include <array>
 #include <concepts>
 #include <cstddef>
 #include <cstdlib>
@@ -37,19 +38,20 @@ concept Arg = requires(T arg) {
     T::value;
 };
 
-template <detail::ComptimeString Program, detail::ComptimeString Version>
+template <detail::ComptimeString Program, detail::ComptimeString Version,
+          detail::ComptimeString Usage, detail::ComptimeString Summary>
 struct ProgramInfo final {
     static inline constexpr detail::ComptimeString name{Program};
     static inline constexpr detail::ComptimeString version{Version};
+    static inline constexpr detail::ComptimeString usage{Usage};
+    static inline constexpr detail::ComptimeString summary{Summary};
 };
 
-template <class T,
-          template <detail::ComptimeString, detail::ComptimeString> typename U>
+template <class T, template <detail::ComptimeString...> class U>
 struct is_instance_of : std::false_type {};
 
-template <detail::ComptimeString Program, detail::ComptimeString Version>
-struct is_instance_of<ProgramInfo<Program, Version>, ProgramInfo>
-    : std::true_type {};
+template <detail::ComptimeString... Info>
+struct is_instance_of<ProgramInfo<Info...>, ProgramInfo> : std::true_type {};
 
 template <class Program, Arg... Args>
 class ArgumentParser final {
@@ -90,7 +92,8 @@ class ArgumentParser final {
 
     [[noreturn]]
     constexpr void PrintHelp() const {
-        std::println("Usage: {} [OPTIONS]...\n", Program::name.PrintableView());
+        std::println(Program::usage.PrintableView());
+        std::println(Program::summary.PrintableView());
         (std::println("\t{}", Args::help_view_), ...);
         std::exit(0);
     }
