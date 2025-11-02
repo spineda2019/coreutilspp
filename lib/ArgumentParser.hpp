@@ -37,9 +37,26 @@ concept Arg = requires(T arg) {
     T::value;
 };
 
-template <detail::ComptimeString Name, detail::ComptimeString Version,
-          Arg... Args>
+template <detail::ComptimeString Program, detail::ComptimeString Version>
+struct ProgramInfo final {
+    static inline constexpr detail::ComptimeString name{Program};
+    static inline constexpr detail::ComptimeString version{Version};
+};
+
+template <class T,
+          template <detail::ComptimeString, detail::ComptimeString> typename U>
+struct is_instance_of : std::false_type {};
+
+template <detail::ComptimeString Program, detail::ComptimeString Version>
+struct is_instance_of<ProgramInfo<Program, Version>, ProgramInfo>
+    : std::true_type {};
+
+template <class Program, Arg... Args>
 class ArgumentParser final {
+    static_assert(is_instance_of<Program, ProgramInfo>::value,
+                  "Program template-parameter must be instantiated from the "
+                  "ProgramInfo type");
+
  public:
     constexpr explicit ArgumentParser(int argc, const char** argv)
         : args_{argv + 1, argv + argc} {}
@@ -66,14 +83,14 @@ class ArgumentParser final {
 
     [[noreturn]]
     constexpr void PrintVersion() const {
-        std::println("{} version {}\n\n{}", Name.PrintableView(),
-                     Version.PrintableView(), license_info_);
+        std::println("{} version {}\n\n{}", Program::name.PrintableView(),
+                     Program::version.PrintableView(), license_info_);
         std::exit(0);
     }
 
     [[noreturn]]
     constexpr void PrintHelp() const {
-        std::println("Usage: {} [OPTIONS]...\n", Name.PrintableView());
+        std::println("Usage: {} [OPTIONS]...\n", Program::name.PrintableView());
         (std::println("\t{}", Args::help_view_), ...);
         std::exit(0);
     }

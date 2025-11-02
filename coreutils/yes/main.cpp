@@ -9,11 +9,11 @@
 #include "lib/ArgumentParser.hpp"
 
 int main(int argc, const char** argv) {
+    using Yes = coreutils::ProgramInfo<"yes", "0.0.1">;
     using PositionalArgs =
         coreutils::PositionalArguments<std::string_view,
                                        [](std::string_view v) { return v; }>;
-    coreutils::ArgumentParser<"yes", "0.0.1", PositionalArgs> parser{argc,
-                                                                     argv};
+    coreutils::ArgumentParser<Yes, PositionalArgs> parser{argc, argv};
     parser.ParseArgsOrExit();
 
     const std::vector<std::string_view>& pos_args{
