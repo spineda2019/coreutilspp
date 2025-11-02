@@ -5,6 +5,14 @@ pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
+    // if other projects want to build this project on the fly, this ought
+    // to be left to false as to not clobber their own compiledb.
+    const create_compiledb: bool = b.option(
+        bool,
+        "compiledb",
+        "Generate compile_commands.json for this project",
+    ) orelse false;
+
     // compiledb
     const compile_db_step = b.step(
         "compiledb",
@@ -24,8 +32,9 @@ pub fn build(b: *std.Build) !void {
         std.process.getCwdAlloc(b.allocator) catch unreachable,
     );
     compile_db_step.dependOn(&runcompiledb.step);
-    // TODO: make this optional of this is a package
-    b.getInstallStep().dependOn(compile_db_step);
+    if (create_compiledb) {
+        b.getInstallStep().dependOn(compile_db_step);
+    }
 
     // coreutils
     const packages: []const PackageConfiguration = &.{
@@ -69,7 +78,9 @@ pub fn build(b: *std.Build) !void {
 
     for (packages) |each_package| {
         const package = try createPackage(each_package);
-        runcompiledb.step.dependOn(&package.step);
+        if (create_compiledb) {
+            runcompiledb.step.dependOn(&package.step);
+        }
     }
 }
 
