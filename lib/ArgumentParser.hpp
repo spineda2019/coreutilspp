@@ -3,7 +3,6 @@
 #ifndef LIB_ARGUMENTPARSER_HPP_
 #define LIB_ARGUMENTPARSER_HPP_
 
-#include <array>
 #include <concepts>
 #include <cstddef>
 #include <cstdlib>
@@ -53,7 +52,10 @@ struct is_instance_of : std::false_type {};
 template <detail::ComptimeString... Info>
 struct is_instance_of<ProgramInfo<Info...>, ProgramInfo> : std::true_type {};
 
-template <class Program, Arg... Args>
+template <class T>
+concept IsProgramInfo = is_instance_of<T, ProgramInfo>::value;
+
+template <IsProgramInfo Program, Arg... Args>
 class ArgumentParser final {
     static_assert(is_instance_of<Program, ProgramInfo>::value,
                   "Program template-parameter must be instantiated from the "
