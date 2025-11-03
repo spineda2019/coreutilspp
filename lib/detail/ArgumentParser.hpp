@@ -16,8 +16,7 @@
 #include <type_traits>
 #include <vector>
 
-namespace coreutils {
-namespace detail {
+namespace coreutils::detail {
 
 template <std::size_t Length>
 struct ComptimeString final {
@@ -237,7 +236,6 @@ struct Argument<T, NArgs::One, Converter, Names...> : ArgumentBase<Names...> {
 
     T value{};
 };
-}  // namespace detail
-}  // namespace coreutils
+}  // namespace coreutils::detail
 
 #endif  // LIB_DETAIL_ARGUMENTPARSER_HPP_
