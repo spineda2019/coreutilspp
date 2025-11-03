@@ -24,12 +24,14 @@ using PositionalArguments =
     detail::Argument<T, detail::NArgs::Many, Converter, "">;
 
 template <detail::ComptimeString... Names>
-using BooleanArgument =
-    detail::Argument<void, detail::NArgs::None, []() {}, Names...>;
+using BooleanArgument = detail::Argument<void, detail::NArgs::None,
+                                         [](std::string_view) {}, Names...>;
 
 template <class T, auto Converter, detail::ComptimeString... Names>
 using SingleValueArgument =
     detail::Argument<T, detail::NArgs::One, Converter, Names...>;
+
+struct ArgumentInfo final {};
 
 template <detail::ComptimeString Program, detail::ComptimeString Version,
           detail::ComptimeString Usage, detail::ComptimeString Summary>
