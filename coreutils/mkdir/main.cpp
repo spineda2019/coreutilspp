@@ -20,8 +20,9 @@ int main(int argc, const char** argv) {
                                        [](std::string_view arg) {
                                            return std::filesystem::path{arg};
                                        }>;
+    using Parents = coreutils::BooleanArgument<"-p", "--parents">;
 
-    coreutils::ArgumentParser<Mkdir, PosArgs> parser{argc, argv};
+    coreutils::ArgumentParser<Mkdir, PosArgs, Parents> parser{argc, argv};
     try {
         parser.ParseArgsOrExit();
     } catch (const std::exception& ex) {
