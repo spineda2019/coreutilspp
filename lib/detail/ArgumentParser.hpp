@@ -75,8 +75,7 @@ template <>
 struct ArgumentBase<""> {
     static inline constexpr std::array<std::string_view, 0> names_{};
 
-    static inline constexpr std::string_view help_view_{
-        "Positional Arguments..."};
+    static inline constexpr std::string_view help_view_{};
 
  protected:
     ParseState state_{ParseState::Start};

@@ -31,12 +31,6 @@ template <class T, auto Converter, detail::ComptimeString... Names>
 using SingleValueArgument =
     detail::Argument<T, detail::NArgs::One, Converter, Names...>;
 
-template <class T>
-concept Arg = requires(T arg) {
-    std::same_as<std::string_view, decltype(T::help_view_)>;
-    T::value;
-};
-
 template <detail::ComptimeString Program, detail::ComptimeString Version,
           detail::ComptimeString Usage, detail::ComptimeString Summary>
 struct ProgramInfo final {
@@ -55,6 +49,12 @@ struct is_instance_of<ProgramInfo<Info...>, ProgramInfo> : std::true_type {};
 template <class T>
 concept IsProgramInfo = is_instance_of<T, ProgramInfo>::value;
 
+template <class T>
+concept Arg = requires(T arg) {
+    std::same_as<std::string_view, decltype(T::help_view_)>;
+    T::value;
+};
+
 template <IsProgramInfo Program, Arg... Args>
 class ArgumentParser final {
  public:
@@ -63,9 +63,9 @@ class ArgumentParser final {
 
     constexpr auto ParseArgsOrExit() {
         for (std::string_view arg : args_) {
-            if (arg == "-v" || arg == "--version") {
+            if (arg == "--version") {
                 PrintVersion();
-            } else if (arg == "-h" || arg == "--help") {
+            } else if (arg == "--help") {
                 PrintHelp();
             } else {
                 if (arg.starts_with('-')) {
@@ -92,6 +92,9 @@ class ArgumentParser final {
     constexpr void PrintHelp() const {
         std::println(Program::usage.PrintableView());
         std::println(Program::summary.PrintableView());
+        std::println("\t{:<15}{:<}", "--help", "display this help and exit");
+        std::println("\t{:<15}{:<}", "--version",
+                     "output version information and exit");
         (std::println("\t{}", Args::help_view_), ...);
         std::exit(0);
     }
