@@ -1,4 +1,22 @@
-// Copyright 2025 Sebastian Pineda (spineda.wpi.alum@gmail.com)
+///
+///  @file ArgumentParser.hpp
+///  @brief public API for the coreutlspp-wide argument parser
+///
+///  Copyright (C) 2025  Sebastian Pineda (spineda.wpi.alum@gmail.com)
+///
+///  This program is free software; you can redistribute it and/or modify
+///  it under the terms of the GNU General Public License as published by
+///  the Free Software Foundation; either version 2 of the License, or
+///  (at your option) any later version.
+///
+///  This program is distributed in the hope that it will be useful,
+///  but WITHOUT ANY WARRANTY; without even the implied warranty of
+///  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+///  GNU General Public License for more details.
+///
+///  You should have received a copy of the GNU General Public License along
+///  with this program. If not, see <https://www.gnu.org/licenses/>
+///
 
 #ifndef LIB_ARGUMENTPARSER_HPP_
 #define LIB_ARGUMENTPARSER_HPP_
@@ -149,7 +167,8 @@ class ArgumentParser final {
 
     [[noreturn]]
     constexpr void PrintVersion() const {
-        std::println("{} version {}\n\n{}", Program::name.PrintableView(),
+        std::println("{} (coreutilspp) version {}\n\n{}",
+                     Program::name.PrintableView(),
                      Program::version.PrintableView(), license_info_);
         std::exit(0);
     }
@@ -177,7 +196,11 @@ class ArgumentParser final {
     std::span<const char*> args_{};
     std::tuple<Args...> arg_values_{};
 
-    static constexpr std::string_view license_info_{"License info TBD."};
+    static constexpr std::string_view license_info_{
+        "Copyright (C) 2025 Free Software Foundation, Inc.\nLicense GPLv3+: "
+        "GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.\nThis "
+        "is free software: you are free to change and redistribute it.\nThere "
+        "is NO WARRANTY, to the extent permitted by law."};
 };
 }  // namespace coreutils
 
