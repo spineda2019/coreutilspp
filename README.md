@@ -15,5 +15,7 @@ I really just wanted to make a cross platform C++ project, and this is easy to
 dog food.
 
 ## Licensing
-This is TBD, I like FOSS and would like the GPLv3 as a result, but this is
-subject to change, even when a decision is made.
+All source code in this project, be it code that is built into binaries (e.g.
+the coreutils themselves) or otherwise (e.g. the build script) is licensed under
+the GPLv3 _or later_. See the LICENSE file and the headers in source code for
+information.
