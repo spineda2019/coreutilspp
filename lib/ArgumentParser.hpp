@@ -3,6 +3,7 @@
 #ifndef LIB_ARGUMENTPARSER_HPP_
 #define LIB_ARGUMENTPARSER_HPP_
 
+#include <array>
 #include <concepts>
 #include <cstddef>
 #include <cstdlib>
@@ -10,6 +11,7 @@
 #include <span>
 #include <string_view>
 #include <tuple>
+#include <type_traits>
 
 #include "detail/ArgumentParser.hpp"
 
@@ -31,7 +33,38 @@ template <class T, auto Converter, detail::ComptimeString... Names>
 using SingleValueArgument =
     detail::Argument<T, detail::NArgs::One, Converter, Names...>;
 
-struct ArgumentInfo final {};
+template <detail::ComptimeString HelpText, detail::ComptimeString... Names>
+struct ArgumentInfo final {
+    static inline constexpr std::array<std::string_view, sizeof...(Names)>
+        names{Names.PrintableView()...};
+    static inline constexpr std::string_view help_text{
+        HelpText.PrintableView()};
+};
+
+template <class ConvertedType, auto Converter>
+concept ValueConverter =
+    std::regular_invocable<decltype(Converter), std::string_view> &&
+    std::same_as<ConvertedType,
+                 std::invoke_result_t<decltype(Converter), std::string_view>>;
+
+template <class ConvertedType, auto Converter>
+concept EmptyConverter = std::same_as<bool, ConvertedType> &&
+                         std::same_as<decltype(Converter), nullptr_t>;
+
+template <class ConvertedType>
+concept NonVoid = !std::same_as<ConvertedType, void>;
+
+template <class ConvertedType, auto Converter>
+concept ArgumentConverter =
+    NonVoid<ConvertedType> && (ValueConverter<ConvertedType, Converter> ||
+                               EmptyConverter<ConvertedType, Converter>);
+
+template <class ConvertedType, auto Converter>
+    requires ArgumentConverter<ConvertedType, Converter>
+struct ConversionInfo final {
+    using type = ConvertedType;
+    static inline constexpr decltype(Converter) Fn{Converter};
+};
 
 template <detail::ComptimeString Program, detail::ComptimeString Version,
           detail::ComptimeString Usage, detail::ComptimeString Summary>
@@ -42,14 +75,45 @@ struct ProgramInfo final {
     static inline constexpr detail::ComptimeString summary{Summary};
 };
 
+template <class T, template <class, auto> class U>
+struct is_conversion_info : std::false_type {};
+
+template <class V, auto C, template <class, auto> class U>
+struct is_conversion_info<U<V, C>, ConversionInfo> : std::true_type {};
+
+template <class T>
+decltype(auto) is_conversion_info_v{
+    is_conversion_info<T, ConversionInfo>::value};
+
 template <class T, template <detail::ComptimeString...> class U>
 struct is_instance_of : std::false_type {};
 
 template <detail::ComptimeString... Info>
 struct is_instance_of<ProgramInfo<Info...>, ProgramInfo> : std::true_type {};
 
+template <detail::ComptimeString... Info>
+struct is_instance_of<ArgumentInfo<Info...>, ArgumentInfo> : std::true_type {};
+
 template <class T>
 concept IsProgramInfo = is_instance_of<T, ProgramInfo>::value;
+
+template <class T>
+concept IsArgumentInfo = is_instance_of<T, ArgumentInfo>::value;
+
+template <class T>
+concept IsFlagConverter =
+    is_conversion_info_v<T> && std::same_as<typename T::type, bool> &&
+    std::same_as<std::remove_cv_t<decltype(T::Fn)>, nullptr_t>;
+
+template <class T>
+concept IsValueConverter =
+    is_conversion_info_v<T> && !std::same_as<typename T::type, void>;
+
+template <IsArgumentInfo Info_t, IsFlagConverter Converter_t>
+struct Flag {};
+
+template <IsArgumentInfo Info_t, IsValueConverter Converter_t>
+struct Option {};
 
 template <class T>
 concept Arg = requires(T arg) {
