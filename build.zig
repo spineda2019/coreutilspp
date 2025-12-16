@@ -153,6 +153,10 @@ fn createPackage(config: PackageConfiguration) !*std.Build.Step.Compile {
         .name = config.name,
         .root_module = mod,
     });
+    comp.lto = switch (config.optimize) {
+        .Debug => .none,
+        else => .full,
+    };
 
     config.build_root.installArtifact(comp);
 
