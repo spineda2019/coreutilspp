@@ -18,28 +18,47 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
+const Config = struct {
+    b: *std.Build,
+    name: []const u8,
+    root_source_file: []const u8,
+    target: std.Build.ResolvedTarget,
+    optimize: std.builtin.OptimizeMode,
+    compiledb: bool,
+};
+
+const common_cpp_flags = [_][]const u8{
+    "-std=c++26",
+    "-Wall",
+    "-Wextra",
+    "-Wpedantic",
+    "-Wshadow",
+    "-Wconversion",
+    "-Werror",
+};
+
+fn tmpJsonPath(
+    buf: *std.ArrayList([]const u8),
+    allocator: std.mem.Allocator,
+    file_name: []const u8,
+) std.mem.Allocator.Error!void {
+    try buf.append(allocator, "-MJ");
+    try buf.append(allocator, name: {
+        var name: std.ArrayList(u8) = .empty;
+        for (file_name) |letter| {
+            try name.append(allocator, switch (letter) {
+                '/' => '.',
+                else => |other| other,
+            });
+        }
+        try name.appendSlice(allocator, ".json.tmp");
+        break :name name.items;
+    });
+}
+
 const CommonModule = struct {
     name: []const u8,
     module: *std.Build.Module,
-
-    const common_cpp_flags = [_][]const u8{
-        "-std=c++26",
-        "-Wall",
-        "-Wextra",
-        "-Wpedantic",
-        "-Wshadow",
-        "-Wconversion",
-        "-Werror",
-    };
-
-    const Config = struct {
-        b: *std.Build,
-        name: []const u8,
-        root_source_file: []const u8,
-        target: std.Build.ResolvedTarget,
-        optimize: std.builtin.OptimizeMode,
-        compiledb: bool,
-    };
 
     pub fn create(config: Config) std.mem.Allocator.Error!CommonModule {
         const module = config.b.createModule(.{
@@ -54,18 +73,7 @@ const CommonModule = struct {
             try flags.append(allocator, flag);
         }
         if (config.compiledb) {
-            try flags.append(allocator, "-MJ");
-            try flags.append(allocator, name: {
-                var name: std.ArrayList(u8) = .empty;
-                for (config.root_source_file) |letter| {
-                    try name.append(allocator, switch (letter) {
-                        '/' => '.',
-                        else => |other| other,
-                    });
-                }
-                try name.appendSlice(allocator, ".json.tmp");
-                break :name name.items;
-            });
+            try tmpJsonPath(&flags, config.b.allocator, config.root_source_file);
         }
 
         module.addCSourceFile(.{
@@ -185,4 +193,45 @@ pub fn build(b: *std.Build) std.mem.Allocator.Error!void {
             runcompiledb.step.dependOn(&exe.step);
         }
     }
+
+    const test_step = b.step("test", "Run unit tests");
+
+    const cpp_test_files = [_][]const u8{
+        "tests/ArgumentParser/tests.cpp",
+    };
+
+    const test_mod = b.createModule(.{
+        .root_source_file = b.path("tests/root.zig"),
+        .link_libcpp = true,
+        .optimize = optimize,
+        .target = target,
+        .sanitize_c = .full,
+        .sanitize_thread = true,
+    });
+
+    for (cpp_test_files) |file| {
+        var flags: std.ArrayList([]const u8) = .empty;
+        for (common_cpp_flags) |common_flag| {
+            try flags.append(b.allocator, common_flag);
+        }
+        if (create_compiledb) {
+            try tmpJsonPath(&flags, b.allocator, file);
+        }
+        test_mod.addCSourceFile(.{
+            .file = b.path(file),
+            .language = .cpp,
+        });
+    }
+
+    const test_compilation = b.addTest(.{
+        .root_module = test_mod,
+    });
+    const run_test = b.addRunArtifact(test_compilation);
+
+    if (create_compiledb) {
+        execompiledb.step.dependOn(&test_compilation.step);
+        run_test.step.dependOn(&execompiledb.step);
+    }
+
+    test_step.dependOn(&run_test.step);
 }
