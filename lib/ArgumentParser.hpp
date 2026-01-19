@@ -185,7 +185,7 @@ class ArgumentParser final {
     }
 
     template <class Out>
-    constexpr const Out& get() const {
+    constexpr Out& get() {
         return std::get<Out>(arg_values_);
     }
 

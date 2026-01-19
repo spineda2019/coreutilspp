@@ -18,7 +18,71 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
-pub fn build(b: *std.Build) !void {
+const CommonModule = struct {
+    name: []const u8,
+    module: *std.Build.Module,
+
+    const common_cpp_flags = [_][]const u8{
+        "-std=c++26",
+        "-Wall",
+        "-Wextra",
+        "-Wpedantic",
+        "-Wshadow",
+        "-Wconversion",
+        "-Werror",
+    };
+
+    const Config = struct {
+        b: *std.Build,
+        name: []const u8,
+        root_source_file: []const u8,
+        target: std.Build.ResolvedTarget,
+        optimize: std.builtin.OptimizeMode,
+        compiledb: bool,
+    };
+
+    pub fn create(config: Config) std.mem.Allocator.Error!CommonModule {
+        const module = config.b.createModule(.{
+            .target = config.target,
+            .optimize = config.optimize,
+            .link_libcpp = true,
+        });
+
+        const allocator = config.b.allocator;
+        var flags: std.ArrayList([]const u8) = .empty;
+        for (common_cpp_flags) |flag| {
+            try flags.append(allocator, flag);
+        }
+        if (config.compiledb) {
+            try flags.append(allocator, "-MJ");
+            try flags.append(allocator, name: {
+                var name: std.ArrayList(u8) = .empty;
+                for (config.root_source_file) |letter| {
+                    try name.append(allocator, switch (letter) {
+                        '/' => '.',
+                        else => |other| other,
+                    });
+                }
+                try name.appendSlice(allocator, ".json.tmp");
+                break :name name.items;
+            });
+        }
+
+        module.addCSourceFile(.{
+            .file = config.b.path(config.root_source_file),
+            .flags = flags.items,
+            .language = .cpp,
+        });
+        module.addIncludePath(config.b.path(""));
+
+        return .{
+            .name = config.name,
+            .module = module,
+        };
+    }
+};
+
+pub fn build(b: *std.Build) std.mem.Allocator.Error!void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
@@ -37,7 +101,7 @@ pub fn build(b: *std.Build) !void {
     );
     const modcompiledb = b.createModule(.{
         .root_source_file = b.path("cleandb/main.zig"),
-        .target = std.Build.resolveTargetQuery(b, std.Target.Query.fromTarget(&builtin.target)),
+        .target = b.resolveTargetQuery(std.Target.Query.fromTarget(&builtin.target)),
         .optimize = optimize,
     });
     const execompiledb = b.addExecutable(.{
@@ -53,149 +117,72 @@ pub fn build(b: *std.Build) !void {
         b.getInstallStep().dependOn(compile_db_step);
     }
 
-    // coreutils
-    const packages: []const PackageConfiguration = &.{
-        .{
-            .name = comptime "ls",
-            .srcs = comptime &.{
-                .{ .name = "main.cpp", .directory = "coreutils/ls/" },
-            },
-            .target = target,
-            .optimize = optimize,
-            .build_root = b,
-        },
-        .{
-            .name = comptime "yes",
-            .srcs = comptime &.{
-                .{ .name = "main.cpp", .directory = "coreutils/yes/" },
-            },
-            .target = target,
-            .optimize = optimize,
-            .build_root = b,
-        },
-        .{
-            .name = comptime "echo",
-            .srcs = comptime &.{
-                .{ .name = "main.cpp", .directory = "coreutils/echo/" },
-            },
-            .target = target,
-            .optimize = optimize,
-            .build_root = b,
-        },
-        .{
-            .name = comptime "mkdir",
-            .srcs = comptime &.{
-                .{ .name = "main.cpp", .directory = "coreutils/mkdir/" },
-            },
-            .target = target,
-            .optimize = optimize,
-            .build_root = b,
-        },
+    const CoreUtils = struct {
+        ls: CommonModule,
+        yes: CommonModule,
+        echo: CommonModule,
+        mkdir: CommonModule,
     };
 
-    for (packages) |each_package| {
-        const package = try createPackage(each_package);
+    const modules: CoreUtils = .{
+        .ls = try .create(.{
+            .b = b,
+            .name = "ls",
+            .root_source_file = "coreutils/ls/main.cpp",
+            .target = target,
+            .optimize = optimize,
+            .compiledb = create_compiledb,
+        }),
+        .yes = try .create(.{
+            .b = b,
+            .name = "yes",
+            .root_source_file = "coreutils/yes/main.cpp",
+            .target = target,
+            .optimize = optimize,
+            .compiledb = create_compiledb,
+        }),
+        .echo = try .create(.{
+            .b = b,
+            .name = "echo",
+            .root_source_file = "coreutils/echo/main.cpp",
+            .target = target,
+            .optimize = optimize,
+            .compiledb = create_compiledb,
+        }),
+        .mkdir = try .create(.{
+            .b = b,
+            .name = "mkdir",
+            .root_source_file = "coreutils/mkdir/main.cpp",
+            .target = target,
+            .optimize = optimize,
+            .compiledb = create_compiledb,
+        }),
+    };
+
+    inline for (comptime std.meta.fieldNames(CoreUtils)) |field| {
+        const coreutil: CommonModule = @field(modules, field);
+        const exe = b.addExecutable(.{
+            .name = coreutil.name,
+            .root_module = coreutil.module,
+        });
+        exe.lto = switch (optimize) {
+            .Debug => .none,
+            else => .full,
+        };
+        b.installArtifact(exe);
+        const run_cmd = b.addRunArtifact(exe);
+        if (b.args) |args| {
+            run_cmd.addArgs(args);
+        }
+
+        const single_build = b.step("build_" ++ field, "Build " ++ field);
+        single_build.dependOn(&exe.step);
+
+        const single_run = b.step("run_" ++ field, "Run " ++ field);
+        single_run.dependOn(&run_cmd.step);
+
         if (create_compiledb) {
-            runcompiledb.step.dependOn(&package.step);
+            runcompiledb.step.dependOn(&exe.step);
         }
     }
 }
-
-fn createPackage(config: PackageConfiguration) !*std.Build.Step.Compile {
-    const mod = config.build_root.createModule(.{
-        .target = config.target,
-        .optimize = config.optimize,
-        .link_libc = false,
-        .link_libcpp = true,
-    });
-
-    for (config.srcs) |cppfile| {
-        const path = calc_path: {
-            var buf: std.ArrayList(u8) = .empty;
-            try buf.appendSlice(config.build_root.allocator, cppfile.directory);
-            try buf.appendSlice(config.build_root.allocator, cppfile.name);
-            break :calc_path config.build_root.path(buf.items);
-        };
-
-        const compiledb_tmp_path = calc_tmp: {
-            var buf: std.ArrayList(u8) = .empty;
-            for (cppfile.directory) |letter| {
-                try buf.append(config.build_root.allocator, switch (letter) {
-                    '/' => '.',
-                    else => |other| other,
-                });
-            }
-            try buf.appendSlice(config.build_root.allocator, cppfile.name);
-            try buf.appendSlice(config.build_root.allocator, ".json.tmp");
-            break :calc_tmp buf.items;
-        };
-
-        mod.addCSourceFile(.{
-            .file = path,
-            .flags = &.{
-                "-std=c++23",
-                "-Wall",
-                "-Wextra",
-                "-Wpedantic",
-                "-Wshadow",
-                "-Wconversion",
-                "-Werror",
-                "-MJ",
-                compiledb_tmp_path,
-            },
-            .language = .cpp,
-        });
-    }
-
-    mod.addIncludePath(config.build_root.path(""));
-
-    const comp = config.build_root.addExecutable(.{
-        .name = config.name,
-        .root_module = mod,
-    });
-    comp.lto = switch (config.optimize) {
-        .Debug => .none,
-        else => .full,
-    };
-
-    config.build_root.installArtifact(comp);
-
-    var build_buf: std.ArrayList(u8) = .empty;
-    try build_buf.appendSlice(config.build_root.allocator, "build ");
-    try build_buf.appendSlice(config.build_root.allocator, config.name);
-    const buildstep = config.build_root.step(config.name, build_buf.items);
-    buildstep.dependOn(&comp.step);
-
-    var name_buf: std.ArrayList(u8) = .empty;
-    try name_buf.appendSlice(config.build_root.allocator, "run_");
-    try name_buf.appendSlice(config.build_root.allocator, config.name);
-    var description_buf: std.ArrayList(u8) = .empty;
-    try description_buf.appendSlice(config.build_root.allocator, "Run ");
-    try description_buf.appendSlice(config.build_root.allocator, config.name);
-    const runstep = config.build_root.step(
-        name_buf.items,
-        description_buf.items,
-    );
-    const runcmd = config.build_root.addRunArtifact(comp);
-    runstep.dependOn(&runcmd.step);
-    if (config.build_root.args) |args| {
-        runcmd.addArgs(args);
-    }
-
-    config.build_root.getInstallStep().dependOn(&comp.step);
-
-    return comp;
-}
-
-const PackageConfiguration = struct {
-    name: []const u8,
-    srcs: []const SourceFile,
-    target: std.Build.ResolvedTarget,
-    optimize: std.builtin.OptimizeMode,
-    build_root: *std.Build,
-};
-
-const SourceFile = struct {
-    name: []const u8,
-    directory: []const u8,
-};
