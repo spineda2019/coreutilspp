@@ -194,6 +194,8 @@ pub fn build(b: *std.Build) std.mem.Allocator.Error!void {
         }
     }
 
+    // Tests
+
     const test_step = b.step("test", "Run unit tests");
 
     const cpp_test_files = [_][]const u8{
@@ -208,6 +210,7 @@ pub fn build(b: *std.Build) std.mem.Allocator.Error!void {
         .sanitize_c = .full,
         .sanitize_thread = true,
     });
+    test_mod.addIncludePath(b.path("lib/"));
 
     for (cpp_test_files) |file| {
         var flags: std.ArrayList([]const u8) = .empty;
@@ -219,6 +222,7 @@ pub fn build(b: *std.Build) std.mem.Allocator.Error!void {
         }
         test_mod.addCSourceFile(.{
             .file = b.path(file),
+            .flags = flags.items,
             .language = .cpp,
         });
     }
@@ -226,12 +230,62 @@ pub fn build(b: *std.Build) std.mem.Allocator.Error!void {
     const test_compilation = b.addTest(.{
         .root_module = test_mod,
     });
-    const run_test = b.addRunArtifact(test_compilation);
+    b.getInstallStep().dependOn(&test_compilation.step);
 
+    const run_test = b.addRunArtifact(test_compilation);
     if (create_compiledb) {
         execompiledb.step.dependOn(&test_compilation.step);
         run_test.step.dependOn(&execompiledb.step);
     }
 
     test_step.dependOn(&run_test.step);
+
+    // Docs
+    const doc_step = b.step("docs", "Build docs with doxygen");
+
+    const dep_t = ?*std.Build.Dependency;
+    const dep_doxygen: dep_t, const exe_path: []const u8 = native_blk: {
+        const native_target = builtin.target;
+        const os = native_target.os.tag;
+        const arch = native_target.cpu.arch;
+        const os_error = "Invalid doxygen OS: " ++ @tagName(os);
+        const arch_error = "Invalid doxygen arch for " ++ @tagName(os) ++ ": " ++ @tagName(arch);
+
+        break :native_blk switch (native_target.os.tag) {
+            .windows => switch (native_target.cpu.arch) {
+                .x86_64 => .{
+                    b.lazyDependency("doxygen-x86_64-windows", .{}),
+                    "doxygen.exe",
+                },
+                else => @panic(arch_error),
+            },
+            .linux => switch (native_target.cpu.arch) {
+                .x86_64 => .{
+                    b.lazyDependency("doxygen-x86_64-linux", .{}),
+                    "bin/doxygen",
+                },
+                else => @panic(arch_error),
+            },
+            .macos => switch (native_target.cpu.arch) {
+                .x86_64 => .{
+                    b.lazyDependency("doxygen-x86_64-macos", .{}),
+                    "doxygen",
+                },
+                .aarch64 => .{
+                    b.lazyDependency("doxygen-aarch64-macos", .{}),
+                    "doxygen",
+                },
+                else => @panic(arch_error),
+            },
+            else => @panic(os_error),
+        };
+    };
+
+    if (dep_doxygen) |dep| {
+        const doxy_step = std.Build.Step.Run.create(b, "docs");
+        doxy_step.addFileArg(dep.path(exe_path));
+
+        doxy_step.step.dependOn(b.getInstallStep()); // zig-out must exist
+        doc_step.dependOn(&doxy_step.step);
+    }
 }
