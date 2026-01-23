@@ -208,7 +208,8 @@ pub fn build(b: *std.Build) std.mem.Allocator.Error!void {
         .optimize = optimize,
         .target = target,
         .sanitize_c = .full,
-        .sanitize_thread = true,
+        // tsan may not work on other OS's
+        .sanitize_thread = target.result.os.tag == .linux,
     });
     test_mod.addIncludePath(b.path("lib/"));
 
