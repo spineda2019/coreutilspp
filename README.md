@@ -21,4 +21,5 @@ the GPLv3 _or later_. See the LICENSE file and the headers in source code for
 information.
 
 ## Documentation
-Generated with Doxygen, and host on GitHub Pages
+Generated with Doxygen, and hosted with GitHub Pages. Changes to the repo should
+automatically be updated in the docs and uploaded accordingly.
