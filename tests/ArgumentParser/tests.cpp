@@ -1,47 +1,51 @@
 #include <ArgumentParser.hpp>
 #include <array>
+#include <functional>
 
 namespace {
-//
-bool TestUsage() { return false; }
-}  // namespace
-
-extern "C" {
-bool test_argparser() { return TestUsage(); }
-
-/*
-
 // -----------------------------------------------------------------------------
 // Test 1: Boolean Flags (Presence/Absence)
 // Description: Verifies that a flag defined via TMP is correctly detected
 // when present and false when absent.
 // -----------------------------------------------------------------------------
 bool test_boolean_flag() {
+    using namespace coreutils;
     // Definition: A parser with a single boolean flag "verbose"
-    using Verbose = coreutils::Flag<"verbose">;
-    using MyParser = ArgParser<Verbose>;
+    using Info = ProgramInfo<"test", "0.0.1", "test", "test">;
+    using Verbose = BooleanArgument<"-v", "--verbose">;
 
     // Case A: Flag is present
     {
-        constexpr std::array<const char *, 1> args{"--verbose"};
-        auto result = MyParser::parse(args.argc, args.argv.data());
+        constexpr int argc = 2;
+        std::array<const char*, argc> argv{"Program", "--verbose"};
 
-        if (!result.success) return false;
-        if (result.get<"verbose">() != true) return false;
+        ArgumentParser<Info, Verbose> parser{argc, argv.data()};
+        try {
+            parser.ParseArgsOrExit();
+        } catch (...) {
+            return false;
+        }
+
+        return parser.get<Verbose>().value;
     }
 
     // Case B: Flag is absent
     {
-        MockArgs args({"./prog"});
-        auto result = MyParser::parse(args.argc, args.argv.data());
+        constexpr int argc = 1;
+        std::array<const char*, argc> argv{"Program"};
 
-        if (!result.success) return false;
-        if (result.get<"verbose">() != false) return false;
+        ArgumentParser<Info, Verbose> parser{argc, argv.data()};
+        try {
+            parser.ParseArgsOrExit();
+        } catch (...) {
+            return false;
+        }
+
+        return !parser.get<Verbose>().value;
     }
-
-    return true;
 }
 
+/*
 // -----------------------------------------------------------------------------
 // Test 2: Typed Options (String & Integer)
 // Description: Tests parsing value pairs and compile-time type conversion.
@@ -140,4 +144,17 @@ bool test_negative_numbers() {
     return true;
 }
 */
+
+std::array<std::function<bool()>, 1> tests{test_boolean_flag};
+}  // namespace
+
+extern "C" {
+bool test_argparser() {
+    bool result{true};
+    for (const auto& test : tests) {
+        result = result && test();
+    }
+
+    return result;
+}
 }

@@ -28,6 +28,8 @@ jobs:
       run: zig build -Dtarget=x86_64-windows-gnu --summary all
     - name: Build aarch64 Windows GNU
       run: zig build -Dtarget=aarch64-windows-gnu --summary all
+    - name: Unit Tests
+      run: zig build test --summary all
     - name: Build Docs
       run: zig build docs --summary all
     - name: Upload Docs
