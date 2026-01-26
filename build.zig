@@ -253,7 +253,6 @@ pub fn build(b: *std.Build) std.mem.Allocator.Error!void {
     const test_compilation = b.addTest(.{
         .root_module = test_mod,
     });
-    b.getInstallStep().dependOn(&test_compilation.step);
 
     const run_test = b.addRunArtifact(test_compilation);
     if (create_compiledb) {
