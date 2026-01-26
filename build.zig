@@ -93,6 +93,20 @@ const CommonModule = struct {
 pub fn build(b: *std.Build) std.mem.Allocator.Error!void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
+    const target_str: []const u8 = blk: {
+        const arch = @tagName(target.result.cpu.arch);
+        const os = @tagName(target.result.os.tag);
+        const abi = @tagName(target.result.abi);
+
+        var buf: std.ArrayList(u8) = .empty;
+        try buf.appendSlice(b.allocator, arch);
+        try buf.append(b.allocator, '-');
+        try buf.appendSlice(b.allocator, os);
+        try buf.append(b.allocator, '-');
+        try buf.appendSlice(b.allocator, abi);
+
+        break :blk buf.items;
+    };
 
     // if other projects want to build this project on the fly, this ought
     // to be left to false as to not clobber their own compiledb.
@@ -177,7 +191,12 @@ pub fn build(b: *std.Build) std.mem.Allocator.Error!void {
             .Debug => .none,
             else => .full,
         };
-        b.installArtifact(exe);
+        const install_step = b.addInstallArtifact(exe, .{
+            .dest_dir = .{
+                .override = .{ .custom = target_str },
+            },
+        });
+        b.getInstallStep().dependOn(&install_step.step);
         const run_cmd = b.addRunArtifact(exe);
         if (b.args) |args| {
             run_cmd.addArgs(args);

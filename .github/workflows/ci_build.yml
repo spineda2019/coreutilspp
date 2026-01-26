@@ -17,14 +17,39 @@ jobs:
       with:
         version: master
     - name: Build x64 Linux GNU
-      run: zig build -Dtarget=x86_64-linux-gnu -p zig-out-x86_64-linux-gnu --summary all
+      run: zig build -Dtarget=x86_64-linux-gnu --summary all
     - name: Build x64 Linux MUSL
-      run: zig build -Dtarget=x86_64-linux-musl -p zig-out-x86_64-linux-musl --summary all
+      run: zig build -Dtarget=x86_64-linux-musl --summary all
     - name: Build aarch64 MacOS
-      run: zig build -Dtarget=aarch64-macos -p zig-out-aarch64-macos --summary all
+      run: zig build -Dtarget=aarch64-macos --summary all
     - name: Build x64 MacOS
-      run: zig build -Dtarget=x86_64-macos -p zig-out-x86_64-macos --summary all
+      run: zig build -Dtarget=x86_64-macos --summary all
     - name: Build x64 Windows GNU
-      run: zig build -Dtarget=x86_64-windows-gnu -p zig-out-x86_64-windows-gnu --summary all
+      run: zig build -Dtarget=x86_64-windows-gnu --summary all
     - name: Build aarch64 Windows GNU
-      run: zig build -Dtarget=aarch64-windows-gnu -p zig-out-aarch64-windows-gnu --summary all
+      run: zig build -Dtarget=aarch64-windows-gnu --summary all
+    - name: Build Docs
+      run: zig build docs --summary all
+    - name: Upload Docs
+      uses: actions/upload-artifact@v4
+      with:
+        name: docs
+        path: ./zig-out/docs/
+
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+    - name: Unstash Docs
+      uses: actions/download-artifact@v4
+      with:
+        name: docs
+        path: ./docs
+    - name: Deploy to GH Pages
+      uses: peaceiris/actions-gh-pages@v4
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./docs
+        force_orphan: true
+        exclude_assets: '.github'
