@@ -105,7 +105,10 @@ pub fn build(b: *std.Build) std.mem.Allocator.Error!void {
         try buf.append(b.allocator, '-');
         try buf.appendSlice(b.allocator, abi);
 
-        break :blk buf.items;
+        break :blk b.pathResolve(&.{
+            buf.items,
+            @tagName(optimize),
+        });
     };
 
     // if other projects want to build this project on the fly, this ought
