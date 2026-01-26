@@ -19,3 +19,6 @@ All source code in this project, be it code that is built into binaries (e.g.
 the coreutils themselves) or otherwise (e.g. the build script) is licensed under
 the GPLv3 _or later_. See the LICENSE file and the headers in source code for
 information.
+
+## Documentation
+Generated with Doxygen, and host on GitHub Pages
