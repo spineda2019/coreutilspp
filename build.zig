@@ -65,6 +65,7 @@ const CommonModule = struct {
             .target = config.target,
             .optimize = config.optimize,
             .link_libcpp = true,
+            .strip = config.optimize != .Debug,
         });
 
         const allocator = config.b.allocator;
